@@ -21,8 +21,8 @@ defmodule Extep do
   @spec run(t(), fun(context())) :: t()
   def run(%Extep{status: :ok, context: context} = extep, fun) when is_function(fun, 1) do
     case apply(fun, [context]) do
-      {:error, error} -> %{extep | status: :halted, error: error}
       context when is_map(context) -> %{extep | context: context}
+      {:error, error} -> %{extep | status: :halted, error: error}
     end
   end
 
