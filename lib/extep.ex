@@ -4,8 +4,11 @@ defmodule Extep do
   defstruct status: :ok, context: %{}, error: nil
 
   @type status :: :ok | :halted
-  @type context :: map() | struct()
+  @type context :: map()
   @type error :: any()
+  @type context_key :: atom()
+  @type context_checker_fun :: (context() -> :ok | {:ok, any()} | error())
+  @type context_mutator_fun :: (context() -> {:ok, any()} | error())
   @type t :: %__MODULE__{status: status, context: context, error: error}
 
   @spec new :: t()
@@ -13,24 +16,42 @@ defmodule Extep do
     %Extep{}
   end
 
-  @spec new(map() | struct()) :: t()
+  @spec new(map()) :: t()
   def new(context) when is_map(context) do
     %Extep{context: context}
   end
 
-  @spec run(t(), fun(context())) :: t()
+  @spec run(t(), context_checker_fun()) :: t()
   def run(%Extep{status: :ok, context: context} = extep, fun) when is_function(fun, 1) do
     case apply(fun, [context]) do
-      context when is_map(context) -> %{extep | context: context}
+      :ok -> extep
+      {:ok, _} -> extep
       {:error, error} -> %{extep | status: :halted, error: error}
     end
   end
 
-  def run(%Extep{status: :halted} = extep, fun) when is_function(fun, 1) do
+  def run(%Extep{status: :halted} = extep, fun) when is_function(fun, 1), do: extep
+
+  @spec run(t(), context_mutator_fun(), context_key()) :: t()
+  def run(%Extep{status: :ok, context: context} = extep, fun, context_key)
+      when is_function(fun, 1) and is_atom(context_key) do
+    case apply(fun, [context]) do
+      {:ok, return} ->
+        context = Map.put(context, context_key, return)
+
+        %{extep | context: context}
+
+      {:error, error} ->
+        %{extep | status: :halted, error: error}
+    end
+  end
+
+  def run(%Extep{status: :halted} = extep, fun, context_key)
+      when is_function(fun, 1) and is_atom(context_key) do
     extep
   end
 
-  @spec return(t(), atom()) :: {:ok, any()} | {:error, any()}
+  @spec return(t(), context_key()) :: {:ok, any()} | {:error, any()}
   def return(%Extep{status: :ok, context: context}, context_key) when is_atom(context_key) do
     {:ok, Map.fetch!(context, context_key)}
   end

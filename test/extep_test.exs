@@ -16,20 +16,62 @@ defmodule ExtepTest do
   end
 
   describe "run/2" do
-    test "executes the given function" do
+    test "when the given function returns ok" do
       extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
 
-      assert Extep.run(extep, fn context -> Map.put(context, :key, "new_value") end) == %Extep{
+      assert Extep.run(extep, fn _context -> :ok end) == %Extep{
                status: :ok,
-               context: %{key: "new_value"},
+               context: %{key: "value"},
                error: nil
              }
     end
 
-    test "when the given function returns an error" do
+    test "when the given function returns an ok tuple" do
+      extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
+
+      assert Extep.run(extep, fn _context -> {:ok, "return"} end) == %Extep{
+               status: :ok,
+               context: %{key: "value"},
+               error: nil
+             }
+    end
+
+    test "when the given function returns an error tuple" do
       extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
 
       assert Extep.run(extep, fn _context -> {:error, "message"} end) == %Extep{
+               status: :halted,
+               context: %{key: "value"},
+               error: "message"
+             }
+    end
+  end
+
+  describe "run/3" do
+    test "updates the context when the given function returns an ok tuple" do
+      extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
+
+      assert Extep.run(extep, fn _context -> {:ok, "new value"} end, :key) == %Extep{
+               status: :ok,
+               context: %{key: "new value"},
+               error: nil
+             }
+    end
+
+    test "adds a new kv to the context when the given function returns an ok tuple" do
+      extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
+
+      assert Extep.run(extep, fn _context -> {:ok, "another value"} end, :another_key) == %Extep{
+               status: :ok,
+               context: %{key: "value", another_key: "another value"},
+               error: nil
+             }
+    end
+
+    test "when the given function returns an error tuple" do
+      extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
+
+      assert Extep.run(extep, fn _context -> {:error, "message"} end, :key) == %Extep{
                status: :halted,
                context: %{key: "value"},
                error: "message"
