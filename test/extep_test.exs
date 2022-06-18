@@ -40,7 +40,7 @@ defmodule ExtepTest do
       extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
 
       assert Extep.run(extep, fn _context -> {:error, "message"} end) == %Extep{
-               status: :halted,
+               status: :error,
                context: %{key: "value"},
                error: "message"
              }
@@ -72,7 +72,7 @@ defmodule ExtepTest do
       extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
 
       assert Extep.run(extep, fn _context -> {:error, "message"} end, :key) == %Extep{
-               status: :halted,
+               status: :error,
                context: %{key: "value"},
                error: "message"
              }
@@ -80,15 +80,15 @@ defmodule ExtepTest do
   end
 
   describe "return/2" do
-    test "returns the value from the given context key as an `:ok` tuple" do
+    test "returns the value from the given context key as an ok tuple" do
       context = %{key: "value", another_key: "antother value"}
       extep = %Extep{status: :ok, context: context, error: nil}
 
       assert Extep.return(extep, :key) == {:ok, "value"}
     end
 
-    test "returns an `:error` tuple when the `%Extep{}` is halted" do
-      extep = %Extep{status: :halted, context: %{key: "value"}, error: "message"}
+    test "returns an error tuple when the `%Extep{}` status is `:error`" do
+      extep = %Extep{status: :error, context: %{key: "value"}, error: "message"}
 
       assert Extep.return(extep, :key) == {:error, "message"}
     end
