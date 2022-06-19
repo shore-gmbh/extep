@@ -12,8 +12,8 @@ defmodule Extep do
   @type halted_return :: :halted | {:halted, any()}
   @type error_return :: :error | {:error, any()}
   @type context_checker_fun ::
-          (context() -> :ok | {:ok, any()} | error_return() | halted_return())
-  @type context_mutator_fun :: (context() -> {:ok, any()} | error_return() | halted_return())
+          (context() -> :ok | {:ok, any()} | halted_return() | error_return())
+  @type context_mutator_fun :: (context() -> {:ok, any()} | halted_return() | error_return())
 
   @spec new :: t()
   def new do
@@ -63,16 +63,24 @@ defmodule Extep do
   defp handle_fun_return(:error, extep), do: %{extep | status: :error}
   defp handle_fun_return({:error, error}, extep), do: %{extep | status: :error, error: error}
 
+  @spec return(t(), function()) :: any()
+  def return(%Extep{status: :ok, context: context}, fun) when is_function(fun, 1) do
+    apply(fun, [context])
+  end
+
+  def return(%Extep{} = extep, fun) when is_function(fun, 1) do
+    return_interrupted(extep)
+  end
+
   @spec return(t(), context_key()) :: {:ok, any()} | error_return()
   def return(%Extep{status: :ok, context: context}, context_key) when is_atom(context_key) do
     {:ok, Map.fetch!(context, context_key)}
   end
 
-  def return(%Extep{status: :halted, halted: halted}, context_key) when is_atom(context_key) do
-    {:ok, halted}
+  def return(%Extep{} = extep, context_key) when is_atom(context_key) do
+    return_interrupted(extep)
   end
 
-  def return(%Extep{status: :error, error: error}, context_key) when is_atom(context_key) do
-    {:error, error}
-  end
+  defp return_interrupted(%Extep{status: :halted, halted: halted}), do: {:ok, halted}
+  defp return_interrupted(%Extep{status: :error, error: error}), do: {:error, error}
 end
