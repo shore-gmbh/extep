@@ -63,7 +63,7 @@ defmodule Extep do
   defp handle_fun_return(:error, extep), do: %{extep | status: :error}
   defp handle_fun_return({:error, error}, extep), do: %{extep | status: :error, error: error}
 
-  @spec return(t(), function()) :: any()
+  @spec return(t(), fun() | context_key()) :: any()
   def return(%Extep{status: :ok, context: context}, fun) when is_function(fun, 1) do
     apply(fun, [context])
   end
@@ -72,7 +72,6 @@ defmodule Extep do
     return_interrupted(extep)
   end
 
-  @spec return(t(), context_key()) :: {:ok, any()} | error_return()
   def return(%Extep{status: :ok, context: context}, context_key) when is_atom(context_key) do
     {:ok, Map.fetch!(context, context_key)}
   end
