@@ -157,7 +157,7 @@ defmodule ExtepTest do
     end
   end
 
-  describe "return/2" do
+  describe "return/2 for context key" do
     test "returns the value from the given context key as an ok tuple" do
       context = %{key: "value", another_key: "antother value"}
       extep = %Extep{status: :ok, context: context, error: nil}
@@ -175,6 +175,26 @@ defmodule ExtepTest do
       extep = %Extep{status: :error, context: %{key: "value"}, error: "message"}
 
       assert Extep.return(extep, :key) == {:error, "message"}
+    end
+  end
+
+  describe "return/2 for function" do
+    test "returns the result of the given function" do
+      extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
+
+      assert Extep.return(extep, &Map.get(&1, :key)) == "value"
+    end
+
+    test "returns the halted value when `%Extep{}` status is `:halted`" do
+      extep = %Extep{status: :halted, context: %{key: "value"}, halted: "message"}
+
+      assert Extep.return(extep, &Map.get(&1, :key)) == {:ok, "message"}
+    end
+
+    test "returns an error tuple when the `%Extep{}` status is `:error`" do
+      extep = %Extep{status: :error, context: %{key: "value"}, error: "message"}
+
+      assert Extep.return(extep, &Map.get(&1, :key)) == {:error, "message"}
     end
   end
 end
