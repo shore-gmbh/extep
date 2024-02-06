@@ -1,85 +1,112 @@
 defmodule Extep do
-  alias __MODULE__
+  defstruct status: :ok, context: %{}, last_step: nil, last_step_idx: nil
 
-  defstruct status: :ok, context: %{}, halted: nil, error: nil
+  @tag_status_dict %{ok: :ok, halt: :halted, error: :error}
 
   @type status :: :ok | :halted | :error
+
   @type context :: map()
-  @type t :: %__MODULE__{status: status(), context: context(), halted: any(), error: any()}
 
-  @type context_key :: atom()
+  @type t :: %Extep{
+          status: status(),
+          context: context(),
+          last_step: atom(),
+          last_step_idx: nil | non_neg_integer()
+        }
 
-  @type halted_return :: :halted | {:halted, any()}
-  @type error_return :: :error | {:error, any()}
-  @type context_checker_fun ::
-          (context() -> :ok | {:ok, any()} | halted_return() | error_return())
-  @type context_mutator_fun :: (context() -> {:ok, any()} | halted_return() | error_return())
+  @type ctx_key :: atom() | non_neg_integer() | {atom(), non_neg_integer()}
+
+  @type return_tag :: :ok | :halt | :error
+  @type return_type :: return_tag() | {return_tag(), any()}
+  @type ctx_mod_fun :: (context() -> return_type())
+
+  defguardp is_halted(status) when status in [:halted, :error]
+
+  defguardp is_ctx_key(key) when is_atom(key) or is_integer(key) or is_tuple(key)
+
+  defguardp is_valid_return_tag(tag) when tag in [:ok, :halt, :error]
 
   @spec new :: t()
-  def new do
-    %Extep{}
-  end
+  def new, do: %Extep{}
 
   @spec new(map()) :: t()
-  def new(context) when is_map(context) do
-    %Extep{context: context}
+  def new(context) when is_map(context), do: %Extep{context: context}
+
+  @spec run(t(), ctx_mod_fun()) :: t()
+  def run(%Extep{status: :ok, last_step_idx: nil} = extep, fun), do: run(extep, 0, fun)
+  def run(%Extep{status: :ok} = extep, fun), do: run(extep, extep.last_step_idx + 1, fun)
+  def run(%Extep{status: status} = extep, _fun) when is_halted(status), do: extep
+
+  @spec run(t(), ctx_key(), ctx_mod_fun()) :: t()
+  def run(%Extep{status: :ok, context: context} = extep, ctx_key, fun) do
+    context
+    |> fun.()
+    |> update_extep(extep, ctx_key)
   end
 
-  @spec run(t(), context_checker_fun()) :: t()
-  def run(%Extep{status: :ok, context: context} = extep, fun) when is_function(fun, 1) do
-    case apply(fun, [context]) do
-      :ok -> extep
-      {:ok, _} -> extep
-      return -> handle_fun_return(return, extep)
+  def run(%Extep{status: status} = extep, _ctx_key, _fun) when is_halted(status), do: extep
+
+  @spec return(t()) :: return_type()
+  def return(%Extep{} = extep), do: handle_return(extep, extep.last_step)
+
+  @spec return(t(), ctx_key()) :: return_type()
+  def return(%Extep{status: :ok} = extep, ctx_key) when is_ctx_key(ctx_key) do
+    handle_return(extep, ctx_key)
+  end
+
+  @spec return(t(), ctx_mod_fun()) :: return_type()
+  def return(%Extep{status: :ok} = extep, fun) when is_function(fun, 1) do
+    return(extep, extep.last_step_idx + 1, fun)
+  end
+
+  def return(%Extep{status: status} = extep, _ctx_key_or_fun) when is_halted(status) do
+    handle_return(extep, extep.last_step)
+  end
+
+  @spec return(t(), ctx_key(), ctx_mod_fun()) :: return_type()
+  def return(%Extep{status: :ok} = extep, ctx_key, fun) do
+    extep
+    |> run(ctx_key, fun)
+    |> handle_return(ctx_key)
+  end
+
+  def return(%Extep{status: status} = extep, _ctx_key, _fun) when is_halted(status) do
+    handle_return(extep, extep.last_step)
+  end
+
+  @spec update_extep({return_tag(), any()}, t(), ctx_key()) :: t()
+  defp update_extep({tag, value}, %Extep{} = extep, ctx_key) when is_valid_return_tag(tag) do
+    Map.merge(extep, %{
+      status: Map.get(@tag_status_dict, tag),
+      context: Map.put(extep.context, ctx_key, value),
+      last_step: ctx_key,
+      last_step_idx: handle_idx(extep.last_step_idx)
+    })
+  end
+
+  @spec update_extep(return_tag(), t(), ctx_key()) :: t()
+  defp update_extep(tag, %Extep{} = extep, ctx_key) when is_valid_return_tag(tag) do
+    update_extep({tag, tag}, extep, ctx_key)
+  end
+
+  defp update_extep(_tag, _extep, _ctx_key), do: raise(Extep.InvalidFunctionReturn)
+
+  @spec handle_return(t(), ctx_key()) :: return_type()
+  defp handle_return(%Extep{status: status, context: context}, ctx_key) do
+    case Map.get(context, ctx_key) do
+      :ok -> :ok
+      :halt -> :ok
+      :error -> :error
+      step_return when status in [:ok, :halted] -> {:ok, step_return}
+      step_return when status == :error -> {:error, step_return}
     end
   end
 
-  def run(%Extep{status: status} = extep, fun)
-      when status in [:halted, :error] and is_function(fun, 1) do
-    extep
-  end
-
-  @spec run(t(), context_mutator_fun(), context_key()) :: t()
-  def run(%Extep{status: :ok, context: context} = extep, fun, context_key)
-      when is_function(fun, 1) and is_atom(context_key) do
-    case apply(fun, [context]) do
-      {:ok, return} ->
-        context = Map.put(context, context_key, return)
-
-        %{extep | context: context}
-
-      return ->
-        handle_fun_return(return, extep)
-    end
-  end
-
-  def run(%Extep{status: status} = extep, fun, context_key)
-      when status in [:halted, :error] and is_function(fun, 1) and is_atom(context_key) do
-    extep
-  end
-
-  defp handle_fun_return(:halt, extep), do: %{extep | status: :halted}
-  defp handle_fun_return({:halt, halt}, extep), do: %{extep | status: :halted, halted: halt}
-  defp handle_fun_return(:error, extep), do: %{extep | status: :error}
-  defp handle_fun_return({:error, error}, extep), do: %{extep | status: :error, error: error}
-
-  @spec return(t(), fun() | context_key()) :: any()
-  def return(%Extep{status: :ok, context: context}, fun) when is_function(fun, 1) do
-    apply(fun, [context])
-  end
-
-  def return(%Extep{} = extep, fun) when is_function(fun, 1) do
-    return_interrupted(extep)
-  end
-
-  def return(%Extep{status: :ok, context: context}, context_key) when is_atom(context_key) do
-    {:ok, Map.fetch!(context, context_key)}
-  end
-
-  def return(%Extep{} = extep, context_key) when is_atom(context_key) do
-    return_interrupted(extep)
-  end
-
-  defp return_interrupted(%Extep{status: :halted, halted: halted}), do: {:ok, halted}
-  defp return_interrupted(%Extep{status: :error, error: error}), do: {:error, error}
+  defp handle_idx(nil), do: 0
+  defp handle_idx(idx), do: idx + 1
 end
+
+# TODO:
+#   [ ] Add `:to` option
+#   [ ] Add `:label_error` option
+#   [ ] Add `:async?` option
