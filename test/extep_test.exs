@@ -545,6 +545,17 @@ defmodule ExtepTest do
       assert Extep.return(extep, :second) == {:ok, "second"}
     end
 
+    test "when context key is a tuple" do
+      extep = %Extep{
+        status: :ok,
+        context: %{:first => "first", {:second, 1} => "second", :third => "third"},
+        last_step: :third,
+        last_step_idx: 2
+      }
+
+      assert Extep.return(extep, {:second, 1}) == {:ok, "second"}
+    end
+
     test "returns the halted value when `%Extep{}` status is `:halted`" do
       extep = %Extep{
         status: :halted,
