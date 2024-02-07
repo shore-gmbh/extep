@@ -259,6 +259,22 @@ defmodule ExtepTest do
              }
     end
 
+    test "when context key is a tuple" do
+      extep = %Extep{
+        status: :ok,
+        context: %{:initial => "value"},
+        last_step: nil,
+        last_step_idx: nil
+      }
+
+      assert Extep.run(extep, {:second, 1}, fn _context -> :ok end) == %Extep{
+               status: :ok,
+               context: %{:initial => "value", {:second, 1} => :ok},
+               last_step: {:second, 1},
+               last_step_idx: 0
+             }
+    end
+
     test "executes next steps when function returns `:ok`" do
       extep = %Extep{
         status: :ok,
