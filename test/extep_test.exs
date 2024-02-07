@@ -523,7 +523,7 @@ defmodule ExtepTest do
         status: :ok,
         context: %{first: "first", second: "second", third: "third"},
         last_step: :third,
-        last_step_idx: 1
+        last_step_idx: 2
       }
 
       assert Extep.return(extep, :second) == {:ok, "second"}
