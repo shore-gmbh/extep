@@ -20,6 +20,8 @@ defmodule Extep do
   @type return_type :: return_tag() | {return_tag(), any()}
   @type ctx_mod_fun :: (context() -> return_type())
 
+  @type opts :: keyword()
+
   defguardp is_halted(status) when status in [:halted, :error]
 
   defguardp is_ctx_key(key) when is_atom(key) or is_integer(key) or is_tuple(key)
@@ -46,32 +48,33 @@ defmodule Extep do
 
   def run(%Extep{status: status} = extep, _ctx_key, _fun) when is_halted(status), do: extep
 
-  @spec return(t()) :: return_type()
-  def return(%Extep{} = extep), do: handle_return(extep, extep.last_step)
+  @spec return(t(), opts()) :: return_type()
+  def return(%Extep{} = extep, opts \\ []), do: handle_return(extep, extep.last_step, opts)
 
-  @spec return(t(), ctx_key()) :: return_type()
-  def return(%Extep{status: :ok} = extep, ctx_key) when is_ctx_key(ctx_key) do
-    handle_return(extep, ctx_key)
+  @spec return(t(), ctx_key(), opts()) :: return_type()
+  def return(%Extep{status: :ok} = extep, ctx_key, opts \\ []) when is_ctx_key(ctx_key) do
+    handle_return(extep, ctx_key, opts)
   end
 
-  @spec return(t(), ctx_mod_fun()) :: return_type()
-  def return(%Extep{status: :ok} = extep, fun) when is_function(fun, 1) do
-    return(extep, extep.last_step_idx + 1, fun)
+  @spec return(t(), ctx_mod_fun(), opts()) :: return_type()
+  def return(%Extep{status: :ok} = extep, fun, opts \\ []) when is_function(fun, 1) do
+    return(extep, extep.last_step_idx + 1, fun, opts)
   end
 
-  def return(%Extep{status: status} = extep, _ctx_key_or_fun) when is_halted(status) do
-    handle_return(extep, extep.last_step)
+  def return(%Extep{status: status} = extep, _ctx_key_or_fun, opts \\ [])
+      when is_halted(status) do
+    handle_return(extep, extep.last_step, opts)
   end
 
-  @spec return(t(), ctx_key(), ctx_mod_fun()) :: return_type()
-  def return(%Extep{status: :ok} = extep, ctx_key, fun) do
+  @spec return(t(), ctx_key(), ctx_mod_fun(), opts()) :: return_type()
+  def return(%Extep{status: :ok} = extep, ctx_key, fun, opts \\ []) do
     extep
     |> run(ctx_key, fun)
     |> handle_return(ctx_key)
   end
 
-  def return(%Extep{status: status} = extep, _ctx_key, _fun) when is_halted(status) do
-    handle_return(extep, extep.last_step)
+  def return(%Extep{status: status} = extep, _ctx_key, _fun, opts \\ []) when is_halted(status) do
+    handle_return(extep, extep.last_step, opts)
   end
 
   @spec update_extep({return_tag(), any()}, t(), ctx_key()) :: t()
@@ -91,19 +94,31 @@ defmodule Extep do
 
   defp update_extep(_tag, _extep, _ctx_key), do: raise(Extep.InvalidFunctionReturn)
 
-  @spec handle_return(t(), ctx_key()) :: return_type()
-  defp handle_return(%Extep{status: status, context: context}, ctx_key) do
+  @spec handle_return(t(), ctx_key(), opts()) :: return_type()
+  defp handle_return(%Extep{status: status, context: context}, ctx_key, opts) do
     case Map.get(context, ctx_key) do
       :ok -> :ok
       :halt -> :ok
-      :error -> :error
+      :error -> handle_error(:error, ctx_key, opts)
       step_return when status in [:ok, :halted] -> {:ok, step_return}
-      step_return when status == :error -> {:error, step_return}
+      step_return when status == :error -> handle_error(step_return, ctx_key, opts)
     end
   end
 
   defp handle_idx(nil), do: 0
   defp handle_idx(idx), do: idx + 1
+
+  defp handle_error(:error, ctx_key, opts) do
+    if Keyword.get(opts, :label_error, false),
+      do: Map.new([{ctx_key, :error}]),
+      else: :error
+  end
+
+  defp handle_error(step_return, ctx_key, opts) do
+    if Keyword.get(opts, :label_error, false),
+      do: {:error, Map.new([{ctx_key, step_return}])},
+      else: {:error, step_return}
+  end
 end
 
 # TODO:
