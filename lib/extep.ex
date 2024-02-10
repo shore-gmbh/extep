@@ -28,17 +28,29 @@ defmodule Extep do
 
   defguardp is_valid_return_tag(tag) when tag in [:ok, :halt, :error]
 
+  @doc """
+  Returns an `%Extep{}` struct with empty context.
+  """
   @spec new :: t()
   def new, do: %Extep{}
 
+  @doc """
+  Returns an `%Extep{}` struct with context.
+  """
   @spec new(map()) :: t()
   def new(context) when is_map(context), do: %Extep{context: context}
 
+  @doc """
+  Executes the given function and sets its return to an index key in the context.
+  """
   @spec run(t(), ctx_mod_fun()) :: t()
   def run(%Extep{status: :ok, last_step_idx: nil} = extep, fun), do: run(extep, 0, fun)
   def run(%Extep{status: :ok} = extep, fun), do: run(extep, extep.last_step_idx + 1, fun)
   def run(%Extep{status: status} = extep, _fun) when is_halted(status), do: extep
 
+  @doc """
+  Executes the given function and sets its return to the given context key.
+  """
   @spec run(t(), ctx_key(), ctx_mod_fun()) :: t()
   def run(%Extep{status: :ok, context: context} = extep, ctx_key, fun) do
     context
@@ -106,7 +118,7 @@ defmodule Extep do
 
   defp handle_error(:error, ctx_key, opts) do
     if Keyword.get(opts, :label_error, false),
-      do: Map.new([{ctx_key, :error}]),
+      do: {:error, ctx_key},
       else: :error
   end
 
@@ -119,5 +131,5 @@ end
 
 # TODO:
 #   [ ] Add `:to` option
-#   [ ] Add `:label_error` option
+#   [X] Add `:label_error` option
 #   [ ] Add `:async?` option

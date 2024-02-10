@@ -521,6 +521,28 @@ defmodule ExtepTest do
       assert Extep.return(extep) == {:ok, "halted in second"}
     end
 
+    test "returns `:error` atom when the `%Extep{}` status is `:error`" do
+      extep = %Extep{
+        status: :error,
+        context: %{first: "first", second: :error},
+        last_step: :second,
+        last_step_idx: 1
+      }
+
+      assert Extep.return(extep) == :error
+    end
+
+    test "given the `label_error: true` option, returns an error tuple with the step name" do
+      extep = %Extep{
+        status: :error,
+        context: %{first: "first", second: :error},
+        last_step: :second,
+        last_step_idx: 1
+      }
+
+      assert Extep.return(extep, label_error: true) == {:error, :second}
+    end
+
     test "returns an error tuple when the `%Extep{}` status is `:error`" do
       extep = %Extep{
         status: :error,
@@ -530,6 +552,17 @@ defmodule ExtepTest do
       }
 
       assert Extep.return(extep) == {:error, "error in second"}
+    end
+
+    test "given the `label_error: true` option, returns a labeled error tuple" do
+      extep = %Extep{
+        status: :error,
+        context: %{first: "first", second: "error in second"},
+        last_step: :second,
+        last_step_idx: 1
+      }
+
+      assert Extep.return(extep, label_error: true) == {:error, %{second: "error in second"}}
     end
   end
 
@@ -556,6 +589,17 @@ defmodule ExtepTest do
       assert Extep.return(extep, {:second, 1}) == {:ok, "second"}
     end
 
+    test "given the `label_error: true` option, returns an error tuple with the step name" do
+      extep = %Extep{
+        status: :error,
+        context: %{first: "first", second: :error},
+        last_step: :second,
+        last_step_idx: 1
+      }
+
+      assert Extep.return(extep, :third, label_error: true) == {:error, :second}
+    end
+
     test "returns the halted value when `%Extep{}` status is `:halted`" do
       extep = %Extep{
         status: :halted,
@@ -576,6 +620,17 @@ defmodule ExtepTest do
       }
 
       assert Extep.return(extep, :third) == {:error, "error in second"}
+    end
+
+    test "given the `label_error: true` option, returns a labeled error tuple" do
+      extep = %Extep{
+        status: :error,
+        context: %{first: "first", second: "error in second"},
+        last_step: :second,
+        last_step_idx: 1
+      }
+
+      assert Extep.return(extep, :third, label_error: true) == {:error, %{second: "error in second"}}
     end
   end
 end
