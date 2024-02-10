@@ -533,7 +533,7 @@ defmodule ExtepTest do
     end
   end
 
-  describe "return/2 for context key" do
+  describe "return/2" do
     test "returns the value from context key as an `:ok` tuple" do
       extep = %Extep{
         status: :ok,
@@ -576,41 +576,6 @@ defmodule ExtepTest do
       }
 
       assert Extep.return(extep, :third) == {:error, "error in second"}
-    end
-  end
-
-  describe "return/2 for function" do
-    test "returns the result of function" do
-      extep = %Extep{
-        status: :ok,
-        context: %{first: "first", second: "second"},
-        last_step: :second,
-        last_step_idx: 1
-      }
-
-      assert Extep.return(extep, fn _ -> {:ok, "third"} end) == {:ok, "third"}
-    end
-
-    test "returns the halted value when `%Extep{}` status is `:halted`" do
-      extep = %Extep{
-        status: :halted,
-        context: %{first: "first", second: "halted in second"},
-        last_step: :second,
-        last_step_idx: 1
-      }
-
-      assert Extep.return(extep, fn _ -> {:ok, "third"} end) == {:ok, "halted in second"}
-    end
-
-    test "returns an error tuple when the `%Extep{}` status is `:error`" do
-      extep = %Extep{
-        status: :error,
-        context: %{first: "first", second: "error in second"},
-        last_step: :second,
-        last_step_idx: 1
-      }
-
-      assert Extep.return(extep, fn _ -> {:ok, "third"} end) == {:error, "error in second"}
     end
   end
 end

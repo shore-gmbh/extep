@@ -48,32 +48,28 @@ defmodule Extep do
 
   def run(%Extep{status: status} = extep, _ctx_key, _fun) when is_halted(status), do: extep
 
-  @spec return(t(), opts()) :: return_type()
-  def return(%Extep{} = extep, opts \\ []), do: handle_return(extep, extep.last_step, opts)
+  @doc """
+  Returns the value of the last step
+  """
+  @spec return(t()) :: return_type()
+  def return(%Extep{} = extep), do: handle_return(extep, extep.last_step, [])
 
-  @spec return(t(), ctx_key(), opts()) :: return_type()
-  def return(%Extep{status: :ok} = extep, ctx_key, opts \\ []) when is_ctx_key(ctx_key) do
-    handle_return(extep, ctx_key, opts)
-  end
-
-  @spec return(t(), ctx_mod_fun(), opts()) :: return_type()
-  def return(%Extep{status: :ok} = extep, fun, opts \\ []) when is_function(fun, 1) do
-    return(extep, extep.last_step_idx + 1, fun, opts)
-  end
-
-  def return(%Extep{status: status} = extep, _ctx_key_or_fun, opts \\ [])
-      when is_halted(status) do
+  @spec return(t(), keyword()) :: return_type()
+  def return(%Extep{} = extep, opts) when is_list(opts) do
     handle_return(extep, extep.last_step, opts)
   end
 
-  @spec return(t(), ctx_key(), ctx_mod_fun(), opts()) :: return_type()
-  def return(%Extep{status: :ok} = extep, ctx_key, fun, opts \\ []) do
-    extep
-    |> run(ctx_key, fun)
-    |> handle_return(ctx_key)
+  @doc """
+  Returns the value of the context key
+  """
+  @spec return(t(), ctx_key(), keyword()) :: return_type()
+  def return(extep, ctx_key, opts \\ [])
+
+  def return(%Extep{status: :ok} = extep, ctx_key, opts) when is_ctx_key(ctx_key) do
+    handle_return(extep, ctx_key, opts)
   end
 
-  def return(%Extep{status: status} = extep, _ctx_key, _fun, opts \\ []) when is_halted(status) do
+  def return(%Extep{status: status} = extep, _ctx_key, opts) when is_halted(status) do
     handle_return(extep, extep.last_step, opts)
   end
 
