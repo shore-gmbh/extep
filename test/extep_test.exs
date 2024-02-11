@@ -80,6 +80,22 @@ defmodule ExtepTest do
              }
     end
 
+    test "given the `set: :ctx_key` option, sets function return to the given context key" do
+      extep = %Extep{
+        status: :ok,
+        context: %{:initial => "value", 0 => "first"},
+        last_step: 0,
+        last_step_idx: 0
+      }
+
+      assert Extep.run(extep, fn _context -> {:ok, "second"} end, set: :foo) == %Extep{
+               status: :ok,
+               context: %{:initial => "value", 0 => "first", 1 => {:set_to, :foo}, :foo => "second"},
+               last_step: 1,
+               last_step_idx: 1
+             }
+    end
+
     test "executes next steps when function returns an `{:ok, _}` tuple" do
       extep = %Extep{
         status: :ok,
@@ -302,7 +318,7 @@ defmodule ExtepTest do
              }
     end
 
-    test "given the `set: :ctx_key` option, sets the return of the function to the given context key" do
+    test "given the `set: :ctx_key` option, sets function return `:ok` to the given context key" do
       extep = %Extep{status: :ok, context: %{}, last_step: nil, last_step_idx: nil}
 
       assert Extep.run(extep, :first, fn _context -> :ok end, set: :foo) == %Extep{
@@ -361,6 +377,22 @@ defmodule ExtepTest do
       assert Extep.run(extep, :second, fn _context -> {:ok, "second"} end) == %Extep{
                status: :ok,
                context: %{:initial => "value", 0 => "first", :second => "second"},
+               last_step: :second,
+               last_step_idx: 1
+             }
+    end
+
+    test "given the `set: :ctx_key` option, sets function return to the given context key" do
+      extep = %Extep{
+        status: :ok,
+        context: %{:initial => "value", 0 => "first"},
+        last_step: 0,
+        last_step_idx: 0
+      }
+
+      assert Extep.run(extep, :second, fn _context -> {:ok, "second"} end, set: :foo) == %Extep{
+               status: :ok,
+               context: %{:initial => "value", 0 => "first", :second => {:set_to, :foo}, :foo => "second"},
                last_step: :second,
                last_step_idx: 1
              }

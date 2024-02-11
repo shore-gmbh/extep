@@ -159,6 +159,6 @@ defmodule Extep do
 end
 
 # TODO:
-#   [ ] Add `:to` option
+#   [X] Add `:set` option
 #   [X] Add `:label_error` option
 #   [ ] Add `:async?` option
