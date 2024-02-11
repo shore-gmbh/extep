@@ -90,7 +90,12 @@ defmodule ExtepTest do
 
       assert Extep.run(extep, fn _context -> {:ok, "second"} end, set: :foo) == %Extep{
                status: :ok,
-               context: %{:initial => "value", 0 => "first", 1 => {:set_to, :foo}, :foo => "second"},
+               context: %{
+                 :initial => "value",
+                 0 => "first",
+                 1 => {:set_to, :foo},
+                 :foo => "second"
+               },
                last_step: 1,
                last_step_idx: 1
              }
@@ -392,7 +397,12 @@ defmodule ExtepTest do
 
       assert Extep.run(extep, :second, fn _context -> {:ok, "second"} end, set: :foo) == %Extep{
                status: :ok,
-               context: %{:initial => "value", 0 => "first", :second => {:set_to, :foo}, :foo => "second"},
+               context: %{
+                 :initial => "value",
+                 0 => "first",
+                 :second => {:set_to, :foo},
+                 :foo => "second"
+               },
                last_step: :second,
                last_step_idx: 1
              }
@@ -501,12 +511,13 @@ defmodule ExtepTest do
         last_step_idx: 0
       }
 
-      assert Extep.run(extep, :second, fn _context -> {:halt, "halted in second"} end, set: :foo) == %Extep{
-               status: :halted,
-               context: %{:initial => "value", 0 => "first", :second => "halted in second"},
-               last_step: :second,
-               last_step_idx: 1
-             }
+      assert Extep.run(extep, :second, fn _context -> {:halt, "halted in second"} end, set: :foo) ==
+               %Extep{
+                 status: :halted,
+                 context: %{:initial => "value", 0 => "first", :second => "halted in second"},
+                 last_step: :second,
+                 last_step_idx: 1
+               }
     end
 
     test "skips next steps when function returns a `:halt` tuple" do
@@ -607,12 +618,13 @@ defmodule ExtepTest do
         last_step_idx: 0
       }
 
-      assert Extep.run(extep, :second, fn _context -> {:error, "error in second"} end, set: :foo) == %Extep{
-               status: :error,
-               context: %{:initial => "value", 0 => "first", :second => "error in second"},
-               last_step: :second,
-               last_step_idx: 1
-             }
+      assert Extep.run(extep, :second, fn _context -> {:error, "error in second"} end, set: :foo) ==
+               %Extep{
+                 status: :error,
+                 context: %{:initial => "value", 0 => "first", :second => "error in second"},
+                 last_step: :second,
+                 last_step_idx: 1
+               }
     end
 
     test "skips next steps when function returns a `:error` tuple" do
@@ -777,7 +789,8 @@ defmodule ExtepTest do
         last_step_idx: 1
       }
 
-      assert Extep.return(extep, :third, label_error: true) == {:error, %{second: "error in second"}}
+      assert Extep.return(extep, :third, label_error: true) ==
+               {:error, %{second: "error in second"}}
     end
   end
 end

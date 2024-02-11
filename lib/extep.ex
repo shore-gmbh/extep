@@ -1,17 +1,17 @@
 defmodule Extep do
-  defstruct status: :ok, context: %{}, last_step: nil, last_step_idx: nil
+  defstruct status: :ok, context: %{}, last_step: nil, last_step_idx: nil, async_steps: []
 
   @tag_status_dict %{ok: :ok, halt: :halted, error: :error}
 
   @type status :: :ok | :halted | :error
-
   @type context :: map()
 
   @type t :: %Extep{
           status: status(),
           context: context(),
           last_step: atom(),
-          last_step_idx: nil | non_neg_integer()
+          last_step_idx: nil | non_neg_integer(),
+          async_steps: keyword({atom(), pid()})
         }
 
   @type ctx_key :: atom() | non_neg_integer() | {atom(), non_neg_integer()}
@@ -62,17 +62,16 @@ defmodule Extep do
   @spec run(t(), ctx_key(), ctx_mod_fun(), keyword()) :: t()
   def run(extep, ctx_key, fun, opts \\ [])
 
-  def run(%Extep{status: :ok, context: context} = extep, ctx_key, fun, opts)
-      when is_ctx_key(ctx_key) do
-    context
-    |> fun.()
-    |> update_extep(extep, ctx_key, opts)
+  def run(%Extep{status: :ok} = extep, ctx_key, fun, opts) when is_ctx_key(ctx_key) do
+    if Keyword.get(opts, :async?, false),
+      do: run_async(extep, ctx_key, fun, opts),
+      else: run_sync(extep, ctx_key, fun, opts)
   end
 
   def run(%Extep{status: status} = extep, _ctx_key, _fun, _opts) when is_halted(status), do: extep
 
   @doc """
-  Returns the value of the last step
+  Returns the value of the last step.
   """
   @spec return(t()) :: return_type()
   def return(%Extep{} = extep), do: handle_return(extep, extep.last_step, [])
@@ -83,7 +82,7 @@ defmodule Extep do
   end
 
   @doc """
-  Returns the value of the context key
+  Returns the value of the context key.
   """
   @spec return(t(), ctx_key(), keyword()) :: return_type()
   def return(extep, ctx_key, opts \\ [])
@@ -94,6 +93,39 @@ defmodule Extep do
 
   def return(%Extep{status: status} = extep, _ctx_key, opts) when is_halted(status) do
     handle_return(extep, extep.last_step, opts)
+  end
+
+  defp run_async(extep, ctx_key, fun, opts) do
+    {:ok, pid} =
+      Task.start(fn ->
+        extep.context
+        |> fun.()
+        |> update_extep(extep, ctx_key, opts)
+      end)
+
+    %{extep | async_steps: Keyword.put(extep.async_steps, ctx_key, pid)}
+  end
+
+  defp run_sync(%Extep{async_steps: []} = extep, ctx_key, fun, opts) do
+    extep.context
+    |> fun.()
+    |> update_extep(extep, ctx_key, opts)
+  end
+
+  defp run_sync(extep, ctx_key, fun, opts) do
+    extep
+    |> await_async_steps()
+    |> run_sync(ctx_key, fun, opts)
+  end
+
+  defp await_async_steps(extep) do
+    last_async_extep =
+      extep.async_steps
+      |> Keyword.values()
+      |> Task.await_many()
+      |> List.first()
+
+    %{last_async_extep | async_steps: []}
   end
 
   @spec update_extep({return_tag(), any()}, t(), ctx_key(), keyword()) :: t()
@@ -128,14 +160,20 @@ defmodule Extep do
   end
 
   @spec handle_return(t(), ctx_key(), opts()) :: return_type()
-  defp handle_return(%Extep{status: status, context: context}, ctx_key, opts) do
-    case Map.get(context, ctx_key) do
+  defp handle_return(%Extep{async_steps: []} = extep, ctx_key, opts) do
+    case Map.get(extep.context, ctx_key) do
       :ok -> :ok
       :halt -> :ok
       :error -> handle_error(:error, ctx_key, opts)
-      step_return when status in [:ok, :halted] -> {:ok, step_return}
-      step_return when status == :error -> handle_error(step_return, ctx_key, opts)
+      step_return when extep.status in [:ok, :halted] -> {:ok, step_return}
+      step_return when extep.status == :error -> handle_error(step_return, ctx_key, opts)
     end
+  end
+
+  defp handle_return(extep, ctx_key, opts) do
+    extep
+    |> await_async_steps()
+    |> handle_return(ctx_key, opts)
   end
 
   defp handle_idx(nil), do: 0
