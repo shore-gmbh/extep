@@ -20,7 +20,7 @@ defmodule ExtepTest do
     end
   end
 
-  describe "run/2" do
+  describe "run/3" do
     test "when function returns `:ok`" do
       extep = %Extep{status: :ok, context: %{}, last_step: nil, last_step_idx: nil}
 
@@ -306,7 +306,7 @@ defmodule ExtepTest do
     end
   end
 
-  describe "run/3" do
+  describe "run/4" do
     test "when function returns `:ok`" do
       extep = %Extep{status: :ok, context: %{}, last_step: nil, last_step_idx: nil}
 

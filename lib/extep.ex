@@ -50,12 +50,8 @@ defmodule Extep do
   Executes the given function and sets its return to an index key in the context.
   """
   @spec run(t(), ctx_mod_fun(), keyword()) :: t()
-  def run(%Extep{status: :ok, last_step_idx: nil} = extep, fun, opts) when is_function(fun, 1) do
-    run(extep, 0, fun, opts)
-  end
-
-  def run(%Extep{status: :ok} = extep, fun, opts) when is_function(fun, 1) do
-    run(extep, extep.last_step_idx + 1, fun, opts)
+  def run(%Extep{status: :ok, last_step_idx: idx} = extep, fun, opts) when is_function(fun, 1) do
+    run(extep, handle_idx(idx), fun, opts)
   end
 
   def run(%Extep{status: status} = extep, _fun, _opts) when is_halted(status), do: extep
@@ -67,7 +63,7 @@ defmodule Extep do
   def run(extep, ctx_key, fun, opts \\ [])
 
   def run(%Extep{status: :ok, context: context} = extep, ctx_key, fun, opts)
-      when is_ctx_key(ctx_key) and is_function(fun, 1) do
+      when is_ctx_key(ctx_key) do
     context
     |> fun.()
     |> update_extep(extep, ctx_key, opts)
