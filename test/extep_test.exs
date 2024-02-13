@@ -311,6 +311,52 @@ defmodule ExtepTest do
     end
   end
 
+  describe "run/3 with `async: true` opts" do
+    test "sets an async step to the `async_steps` key" do
+      extep = %Extep{
+        status: :ok,
+        context: %{},
+        last_step: nil,
+        last_step_idx: nil,
+        async_steps: []
+      }
+
+      assert %Extep{
+               status: :ok,
+               context: %{},
+               last_step: nil,
+               last_step_idx: nil,
+               async_steps: [{0, pid}]
+             } = Extep.run(extep, fn _context -> :ok end, async: true)
+
+      assert is_pid(pid)
+    end
+
+    test "todo" do
+      extep = %Extep{
+        status: :ok,
+        context: %{},
+        last_step: nil,
+        last_step_idx: nil,
+        async_steps: []
+      }
+
+      extep =
+        extep
+        |> Extep.run(fn _context -> :ok end, async: true)
+        |> Extep.run(fn _context -> :ok end, async: true)
+        |> Extep.run(fn _context -> :ok end)
+
+      assert %Extep{
+               status: :ok,
+               context: %{0 => :ok, 1 => :ok, 2 => :ok},
+               last_step: 2,
+               last_step_idx: 2,
+               async_steps: []
+             } = extep
+    end
+  end
+
   describe "run/4" do
     test "when function returns `:ok`" do
       extep = %Extep{status: :ok, context: %{}, last_step: nil, last_step_idx: nil}

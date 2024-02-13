@@ -1,5 +1,10 @@
 defmodule Extep do
-  defstruct status: :ok, context: %{}, last_step: nil, last_step_idx: nil, async_steps: []
+  defstruct status: :ok,
+            context: %{},
+            last_step: nil,
+            last_step_idx: nil,
+            halted_at_step: nil,
+            async_steps: []
 
   @tag_status_dict %{ok: :ok, halt: :halted, error: :error}
 
@@ -9,24 +14,23 @@ defmodule Extep do
   @type t :: %Extep{
           status: status(),
           context: context(),
-          last_step: atom(),
+          last_step: any(),
           last_step_idx: nil | non_neg_integer(),
+          halted_at_step: any(),
           async_steps: keyword({atom(), pid()})
         }
 
   @type ctx_key :: atom() | non_neg_integer() | {atom(), non_neg_integer()}
 
   @type return_tag :: :ok | :halt | :error
-  @type return_type :: return_tag() | {return_tag(), any()}
-  @type ctx_mod_fun :: (context() -> return_type())
+  @type ctx_mod_fun_return_type :: return_tag() | {return_tag(), any()}
+  @type ctx_mod_fun :: (context() -> ctx_mod_fun_return_type())
 
   @type opts :: keyword()
 
   defguardp is_halted(status) when status in [:halted, :error]
 
   defguardp is_ctx_key(key) when is_atom(key) or is_integer(key) or is_tuple(key)
-
-  defguardp is_valid_return_tag(tag) when tag in [:ok, :halt, :error]
 
   @doc """
   Returns an `%Extep{}` struct with empty context.
@@ -47,7 +51,7 @@ defmodule Extep do
   def run(extep, fun), do: run(extep, fun, [])
 
   @doc """
-  Executes the given function and sets its return to an index key in the context.
+  Executes the given function and sets its result to an index key in the context.
   """
   @spec run(t(), ctx_mod_fun(), keyword()) :: t()
   def run(%Extep{status: :ok, last_step_idx: idx} = extep, fun, opts) when is_function(fun, 1) do
@@ -57,13 +61,13 @@ defmodule Extep do
   def run(%Extep{status: status} = extep, _fun, _opts) when is_halted(status), do: extep
 
   @doc """
-  Executes the given function and sets its return to the given context key.
+  Executes the given function and sets its result to the given context key.
   """
   @spec run(t(), ctx_key(), ctx_mod_fun(), keyword()) :: t()
   def run(extep, ctx_key, fun, opts \\ [])
 
   def run(%Extep{status: :ok} = extep, ctx_key, fun, opts) when is_ctx_key(ctx_key) do
-    if Keyword.get(opts, :async?, false),
+    if Keyword.get(opts, :async, false),
       do: run_async(extep, ctx_key, fun, opts),
       else: run_sync(extep, ctx_key, fun, opts)
   end
@@ -73,10 +77,10 @@ defmodule Extep do
   @doc """
   Returns the value of the last step.
   """
-  @spec return(t()) :: return_type()
+  @spec return(t()) :: ctx_mod_fun_return_type()
   def return(%Extep{} = extep), do: handle_return(extep, extep.last_step, [])
 
-  @spec return(t(), keyword()) :: return_type()
+  @spec return(t(), keyword()) :: ctx_mod_fun_return_type()
   def return(%Extep{} = extep, opts) when is_list(opts) do
     handle_return(extep, extep.last_step, opts)
   end
@@ -84,7 +88,7 @@ defmodule Extep do
   @doc """
   Returns the value of the context key.
   """
-  @spec return(t(), ctx_key(), keyword()) :: return_type()
+  @spec return(t(), ctx_key(), keyword()) :: ctx_mod_fun_return_type()
   def return(extep, ctx_key, opts \\ [])
 
   def return(%Extep{status: :ok} = extep, ctx_key, opts) when is_ctx_key(ctx_key) do
@@ -92,74 +96,116 @@ defmodule Extep do
   end
 
   def return(%Extep{status: status} = extep, _ctx_key, opts) when is_halted(status) do
-    handle_return(extep, extep.last_step, opts)
+    handle_return(extep, extep.halted_at_step, opts)
   end
 
   defp run_async(extep, ctx_key, fun, opts) do
-    {:ok, pid} =
-      Task.start(fn ->
-        extep.context
-        |> fun.()
-        |> update_extep(extep, ctx_key, opts)
+    async_step =
+      Task.async(fn ->
+        step_result = fun.(extep.context)
+
+        %{ctx_key: ctx_key, step_result: step_result, opts: opts}
       end)
 
-    %{extep | async_steps: Keyword.put(extep.async_steps, ctx_key, pid)}
+    extep
+    |> Map.put(:async_steps, [async_step | extep.async_steps])
+    |> put_last_step(ctx_key)
   end
 
-  defp run_sync(%Extep{async_steps: []} = extep, ctx_key, fun, opts) do
-    extep.context
-    |> fun.()
-    |> update_extep(extep, ctx_key, opts)
+  defp run_sync(%Extep{status: :ok, async_steps: []} = extep, ctx_key, fun, opts) do
+    step_result = fun.(extep.context)
+
+    extep
+    |> put_context(step_result, ctx_key, opts)
+    |> maybe_put_halted_at_step(step_result, ctx_key)
+    |> put_status(step_result)
+    |> put_last_step(ctx_key)
   end
 
-  defp run_sync(extep, ctx_key, fun, opts) do
+  defp run_sync(%Extep{status: :ok} = extep, ctx_key, fun, opts) do
     extep
     |> await_async_steps()
     |> run_sync(ctx_key, fun, opts)
   end
 
+  defp run_sync(%Extep{status: status} = extep, _ctx_key, _fun, _opts) when is_halted(status) do
+    extep
+  end
+
   defp await_async_steps(extep) do
-    last_async_extep =
-      extep.async_steps
-      |> Keyword.values()
-      |> Task.await_many()
-      |> List.first()
-
-    %{last_async_extep | async_steps: []}
+    extep.async_steps
+    |> Task.await_many()
+    |> Enum.reduce(extep, fn %{ctx_key: ctx_key, step_result: step_result, opts: opts}, acc ->
+      acc
+      |> put_context(step_result, ctx_key, opts)
+      |> maybe_put_halted_at_step(step_result, ctx_key)
+      |> put_status(step_result)
+    end)
+    |> Map.put(:async_steps, [])
   end
 
-  @spec update_extep({return_tag(), any()}, t(), ctx_key(), keyword()) :: t()
-  defp update_extep({tag, value}, %Extep{} = extep, ctx_key, opts)
-       when is_valid_return_tag(tag) do
-    status = Map.get(@tag_status_dict, tag)
+  defp put_context(%Extep{} = extep, step_result, ctx_key, opts) do
+    status = fetch_status!(step_result)
+    result = fetch_result!(step_result)
 
-    Map.merge(extep, %{
-      status: status,
-      context: update_context(extep.context, status, ctx_key, value, opts),
-      last_step: ctx_key,
-      last_step_idx: handle_idx(extep.last_step_idx)
-    })
+    %{extep | context: update_context(extep.context, status, ctx_key, result, opts)}
   end
 
-  @spec update_extep(return_tag(), t(), ctx_key(), keyword()) :: t()
-  defp update_extep(tag, %Extep{} = extep, ctx_key, opts) when is_valid_return_tag(tag) do
-    update_extep({tag, tag}, extep, ctx_key, opts)
+  defp put_status(%Extep{status: :ok} = extep, step_result) do
+    %{extep | status: fetch_status!(step_result)}
   end
 
-  defp update_extep(_tag, _extep, _ctx_key, _opts), do: raise(Extep.InvalidFunctionReturn)
+  defp put_status(%Extep{status: status} = extep, _step_result) when is_halted(status), do: extep
 
-  defp update_context(context, :ok, ctx_key, value, opts) do
-    case Keyword.get(opts, :set, ctx_key) do
-      ^ctx_key -> Map.put(context, ctx_key, value)
-      set -> context |> Map.put(set, value) |> Map.put(ctx_key, {:set_to, set})
+  defp maybe_put_halted_at_step(%Extep{status: :ok} = extep, step_result, ctx_key) do
+    case fetch_status!(step_result) do
+      :ok -> extep
+      _ -> %{extep | halted_at_step: ctx_key}
     end
   end
 
-  defp update_context(context, _status, ctx_key, value, _opts) do
-    Map.put(context, ctx_key, value)
+  defp maybe_put_halted_at_step(%Extep{status: status} = extep, _step_result, _ctx_key)
+       when is_halted(status) do
+    extep
   end
 
-  @spec handle_return(t(), ctx_key(), opts()) :: return_type()
+  @spec fetch_status!(ctx_mod_fun_return_type()) :: status()
+  defp fetch_status!({tag, _result}), do: fetch_status!(tag)
+
+  defp fetch_status!(tag) do
+    Map.fetch!(@tag_status_dict, tag)
+  rescue
+    KeyError -> raise(Extep.InvalidFunctionReturn)
+  end
+
+  @spec fetch_result!(ctx_mod_fun_return_type()) :: any()
+  defp fetch_result!({tag, result}) do
+    fetch_status!(tag)
+    result
+  end
+
+  defp fetch_result!(tag), do: fetch_result!({tag, tag})
+
+  defp put_last_step(%Extep{} = extep, ctx_key) do
+    %{
+      extep
+      | last_step: ctx_key,
+        last_step_idx: handle_idx(extep.last_step_idx)
+    }
+  end
+
+  defp update_context(context, :ok, ctx_key, result, opts) do
+    case Keyword.get(opts, :set, ctx_key) do
+      ^ctx_key -> Map.put(context, ctx_key, result)
+      set -> context |> Map.put(set, result) |> Map.put(ctx_key, {:set_to, set})
+    end
+  end
+
+  defp update_context(context, _status, ctx_key, result, _opts) do
+    Map.put(context, ctx_key, result)
+  end
+
+  @spec handle_return(t(), ctx_key(), opts()) :: ctx_mod_fun_return_type()
   defp handle_return(%Extep{async_steps: []} = extep, ctx_key, opts) do
     case Map.get(extep.context, ctx_key) do
       :ok -> :ok
@@ -195,4 +241,4 @@ end
 # TODO:
 #   [X] Add `:set` option
 #   [X] Add `:label_error` option
-#   [ ] Add `:async?` option
+#   [ ] Add `:async` option
