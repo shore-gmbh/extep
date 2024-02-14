@@ -32,6 +32,7 @@ defmodule Extep do
 
   defguardp is_halted(status) when status in [:halted, :error]
 
+  @impl true
   def start(_type, _args) do
     import Supervisor.Spec, warn: false
 
