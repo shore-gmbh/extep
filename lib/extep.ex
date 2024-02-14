@@ -30,8 +30,6 @@ defmodule Extep do
 
   defguardp is_halted(status) when status in [:halted, :error]
 
-  defguardp is_ctx_key(key) when is_atom(key) or is_integer(key) or is_tuple(key)
-
   @doc """
   Returns an `%Extep{}` struct with empty context.
   """
@@ -66,7 +64,7 @@ defmodule Extep do
   @spec run(t(), ctx_key(), ctx_mod_fun(), keyword()) :: t()
   def run(extep, ctx_key, fun, opts \\ [])
 
-  def run(%Extep{status: :ok} = extep, ctx_key, fun, opts) when is_ctx_key(ctx_key) do
+  def run(%Extep{status: :ok} = extep, ctx_key, fun, opts) do
     if Keyword.get(opts, :async, false),
       do: run_async(extep, ctx_key, fun, opts),
       else: run_sync(extep, ctx_key, fun, opts)
@@ -78,11 +76,21 @@ defmodule Extep do
   Returns the value of the last step.
   """
   @spec return(t()) :: ctx_mod_fun_return_type()
-  def return(%Extep{} = extep), do: handle_return(extep, extep.last_step, [])
+  def return(%Extep{status: :ok} = extep) do
+    handle_return(extep, extep.last_step, [])
+  end
+
+  def return(%Extep{status: status} = extep) when is_halted(status) do
+    handle_return(extep, extep.halted_at_step, [])
+  end
 
   @spec return(t(), keyword()) :: ctx_mod_fun_return_type()
-  def return(%Extep{} = extep, opts) when is_list(opts) do
+  def return(%Extep{status: :ok} = extep, opts) when is_list(opts) do
     handle_return(extep, extep.last_step, opts)
+  end
+
+  def return(%Extep{status: status} = extep, opts) when is_list(opts) and is_halted(status) do
+    handle_return(extep, extep.halted_at_step, opts)
   end
 
   @doc """
@@ -91,7 +99,7 @@ defmodule Extep do
   @spec return(t(), ctx_key(), keyword()) :: ctx_mod_fun_return_type()
   def return(extep, ctx_key, opts \\ [])
 
-  def return(%Extep{status: :ok} = extep, ctx_key, opts) when is_ctx_key(ctx_key) do
+  def return(%Extep{status: :ok} = extep, ctx_key, opts) do
     handle_return(extep, ctx_key, opts)
   end
 
@@ -205,13 +213,24 @@ defmodule Extep do
   end
 
   @spec handle_return(t(), ctx_key(), opts()) :: ctx_mod_fun_return_type()
-  defp handle_return(%Extep{async_steps: []} = extep, ctx_key, opts) do
+  defp handle_return(%Extep{status: :ok, async_steps: []} = extep, ctx_key, _opts) do
     case Map.get(extep.context, ctx_key) do
       :ok -> :ok
-      :halt -> :ok
-      :error -> handle_error(:error, ctx_key, opts)
-      step_return when extep.status in [:ok, :halted] -> {:ok, step_return}
-      step_return when extep.status == :error -> handle_error(step_return, ctx_key, opts)
+      step_return -> {:ok, step_return}
+    end
+  end
+
+  defp handle_return(%Extep{status: status, async_steps: []} = extep, _ctx_key, opts)
+       when is_halted(status) do
+    case Map.get(extep.context, extep.halted_at_step) do
+      :halt ->
+        :ok
+
+      step_return when extep.status == :error ->
+        handle_error(step_return, extep.halted_at_step, opts)
+
+      step_return when extep.status == :halted ->
+        {:ok, step_return}
     end
   end
 
@@ -226,7 +245,7 @@ defmodule Extep do
 
   defp handle_error(:error, ctx_key, opts) do
     if Keyword.get(opts, :label_error, false),
-      do: {:error, ctx_key},
+      do: {:error, Map.new([{ctx_key, :error}])},
       else: :error
   end
 
@@ -240,4 +259,5 @@ end
 # TODO:
 #   [X] Add `:set` option
 #   [X] Add `:label_error` option
-#   [ ] Add `:async` option
+#   [x] Add `:async` option
+#   [ ] Add Task supervisor

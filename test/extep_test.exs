@@ -946,7 +946,8 @@ defmodule ExtepTest do
         status: :halted,
         context: %{first: "first", second: "halted in second"},
         last_step: :second,
-        last_step_idx: 1
+        last_step_idx: 1,
+        halted_at_step: :second
       }
 
       assert Extep.return(extep) == {:ok, "halted in second"}
@@ -957,7 +958,8 @@ defmodule ExtepTest do
         status: :error,
         context: %{first: "first", second: :error},
         last_step: :second,
-        last_step_idx: 1
+        last_step_idx: 1,
+        halted_at_step: :second
       }
 
       assert Extep.return(extep) == :error
@@ -968,10 +970,11 @@ defmodule ExtepTest do
         status: :error,
         context: %{first: "first", second: :error},
         last_step: :second,
-        last_step_idx: 1
+        last_step_idx: 1,
+        halted_at_step: :second
       }
 
-      assert Extep.return(extep, label_error: true) == {:error, :second}
+      assert Extep.return(extep, label_error: true) == {:error, %{second: :error}}
     end
 
     test "returns an error tuple when the `%Extep{}` status is `:error`" do
@@ -979,7 +982,8 @@ defmodule ExtepTest do
         status: :error,
         context: %{first: "first", second: "error in second"},
         last_step: :second,
-        last_step_idx: 1
+        last_step_idx: 1,
+        halted_at_step: :second
       }
 
       assert Extep.return(extep) == {:error, "error in second"}
@@ -990,7 +994,8 @@ defmodule ExtepTest do
         status: :error,
         context: %{first: "first", second: "error in second"},
         last_step: :second,
-        last_step_idx: 1
+        last_step_idx: 1,
+        halted_at_step: :second
       }
 
       assert Extep.return(extep, label_error: true) == {:error, %{second: "error in second"}}
@@ -1029,7 +1034,7 @@ defmodule ExtepTest do
         halted_at_step: :second
       }
 
-      assert Extep.return(extep, :third, label_error: true) == {:error, :second}
+      assert Extep.return(extep, :third, label_error: true) == {:error, %{second: :error}}
     end
 
     test "returns the halted value when `%Extep{}` status is `:halted`" do
@@ -1070,6 +1075,705 @@ defmodule ExtepTest do
     end
   end
 
-  describe "full flow" do
+  describe "full flow - steps without names - last step async - return without index" do
+    test "returns the last step when it's `:ok`" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step one result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(fn _context -> :ok end, async: true)
+        |> Extep.return()
+
+      assert extep == :ok
+    end
+
+    test "returns the last step when it's an `{:ok, _}` tuple" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step one result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return()
+
+      assert extep == {:ok, "step two result with initial state"}
+    end
+
+    test "when an async step returns `:error`" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn _context -> :error end, async: true)
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return()
+
+      assert extep == :error
+    end
+
+    test "when an async step returns `:error` and `label_error` option is set" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn _context -> :error end, async: true)
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return(label_error: true)
+
+      assert extep == {:error, %{0 => :error}}
+    end
+
+    test "when an async step returns an `{:error, _}` tuple" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn _context -> {:error, "step one error"} end, async: true)
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return()
+
+      assert extep == {:error, "step one error"}
+    end
+
+    test "when an async step returns an `{:error, _}` tuple and `label_error` option is set" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn _context -> {:error, "step one error"} end, async: true)
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return(label_error: true)
+
+      assert extep == {:error, %{0 => "step one error"}}
+    end
+
+    test "when an async step returns `:halt`" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step one result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(fn _context -> :halt end, async: true)
+        |> Extep.return()
+
+      assert extep == :ok
+    end
+
+    test "when an async step returns an `{:halt, _}` tuple" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(fn _context -> {:halt, "step two halted"} end, async: true)
+        |> Extep.return()
+
+      assert extep == {:ok, "step two halted"}
+    end
+  end
+
+  describe "full flow - steps without names - last step async - return with index" do
+    test "returns the last step when it's `:ok`" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step one result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(fn _context -> :ok end, async: true)
+        |> Extep.return(0)
+
+      assert extep == {:ok, "step one result with initial state"}
+    end
+
+    test "returns the last step when it's an `{:ok, _}` tuple" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step one result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return(1)
+
+      assert extep == {:ok, "step two result with initial state"}
+    end
+
+    test "when an async step returns `:error`" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn _context -> :error end, async: true)
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return(1)
+
+      assert extep == :error
+    end
+
+    test "when an async step returns `:error` and `label_error` option is set" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn _context -> :error end, async: true)
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return(1, label_error: true)
+
+      assert extep == {:error, %{0 => :error}}
+    end
+
+    test "when an async step returns an `{:error, _}` tuple" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn _context -> {:error, "step one error"} end, async: true)
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return(1)
+
+      assert extep == {:error, "step one error"}
+    end
+
+    test "when an async step returns an `{:error, _}` tuple and `label_error` option is set" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn _context -> {:error, "step one error"} end, async: true)
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return(1, label_error: true)
+
+      assert extep == {:error, %{0 => "step one error"}}
+    end
+
+    test "when an async step returns `:halt`" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step one result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(fn _context -> :halt end, async: true)
+        |> Extep.return(1)
+
+      assert extep == :ok
+    end
+
+    test "when an async step returns an `{:halt, _}` tuple" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(fn _context -> {:halt, "step two halted"} end, async: true)
+        |> Extep.return(1)
+
+      assert extep == {:ok, "step two halted"}
+    end
+  end
+
+  describe "full flow - steps without names - last step sync - return without index" do
+    test "returns the last step when it's `:ok`" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step one result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(fn _context -> :ok end)
+        |> Extep.return()
+
+      assert extep == :ok
+    end
+
+    test "returns the last step when it's an `{:ok, _}` tuple" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step one result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end)
+        |> Extep.return()
+
+      assert extep == {:ok, "step two result with initial state"}
+    end
+
+    test "when an async step returns `:error`" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn _context -> :error end, async: true)
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end)
+        |> Extep.return()
+
+      assert extep == :error
+    end
+
+    test "when an async step returns `:error` and `label_error` option is set" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn _context -> :error end, async: true)
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end)
+        |> Extep.return(label_error: true)
+
+      assert extep == {:error, %{0 => :error}}
+    end
+
+    test "when an async step returns an `{:error, _}` tuple" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn _context -> {:error, "step one error"} end, async: true)
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end)
+        |> Extep.return()
+
+      assert extep == {:error, "step one error"}
+    end
+
+    test "when an async step returns an `{:error, _}` tuple and `label_error` option is set" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn _context -> {:error, "step one error"} end, async: true)
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end)
+        |> Extep.return(label_error: true)
+
+      assert extep == {:error, %{0 => "step one error"}}
+    end
+
+    test "when an async step returns `:halt`" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step one result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(fn _context -> :halt end)
+        |> Extep.return()
+
+      assert extep == :ok
+    end
+
+    test "when an async step returns an `{:halt, _}` tuple" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(fn _context -> {:halt, "step two halted"} end)
+        |> Extep.return()
+
+      assert extep == {:ok, "step two halted"}
+    end
+  end
+
+  describe "full flow - steps with names - last step async - return without step name" do
+    test "returns the last step when it's `:ok`" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(
+          :first,
+          fn %{initial: initial} -> {:ok, "step one result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(:second, fn _context -> :ok end, async: true)
+        |> Extep.return()
+
+      assert extep == :ok
+    end
+
+    test "returns the last step when it's an `{:ok, _}` tuple" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(
+          :first,
+          fn %{initial: initial} -> {:ok, "step one result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(
+          :second,
+          fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return()
+
+      assert extep == {:ok, "step two result with initial state"}
+    end
+
+    test "when an async step returns `:error`" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(:first, fn _context -> :error end, async: true)
+        |> Extep.run(
+          :second,
+          fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return()
+
+      assert extep == :error
+    end
+
+    test "when an async step returns `:error` and `label_error` option is set" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(:first, fn _context -> :error end, async: true)
+        |> Extep.run(
+          :second,
+          fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return(label_error: true)
+
+      assert extep == {:error, %{first: :error}}
+    end
+
+    test "when an async step returns an `{:error, _}` tuple" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(:first, fn _context -> {:error, "step one error"} end, async: true)
+        |> Extep.run(
+          :second,
+          fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return()
+
+      assert extep == {:error, "step one error"}
+    end
+
+    test "when an async step returns an `{:error, _}` tuple and `label_error` option is set" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(:first, fn _context -> {:error, "step one error"} end, async: true)
+        |> Extep.run(
+          :second,
+          fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return(label_error: true)
+
+      assert extep == {:error, %{first: "step one error"}}
+    end
+
+    test "when an async step returns `:halt`" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(
+          :first,
+          fn %{initial: initial} -> {:ok, "step one result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(:second, fn _context -> :halt end, async: true)
+        |> Extep.return()
+
+      assert extep == :ok
+    end
+
+    test "when an async step returns an `{:halt, _}` tuple" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(
+          :first,
+          fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(:second, fn _context -> {:halt, "step two halted"} end, async: true)
+        |> Extep.return()
+
+      assert extep == {:ok, "step two halted"}
+    end
+  end
+
+  describe "full flow - steps with names - last step async - return with step name" do
+    test "returns the last step when it's `:ok`" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(
+          :first,
+          fn %{initial: initial} -> {:ok, "step one result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(:second, fn _context -> :ok end, async: true)
+        |> Extep.return(:first)
+
+      assert extep == {:ok, "step one result with initial state"}
+    end
+
+    test "returns the last step when it's an `{:ok, _}` tuple" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(
+          :first,
+          fn %{initial: initial} -> {:ok, "step one result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(
+          :second,
+          fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return(:first)
+
+      assert extep == {:ok, "step one result with initial state"}
+    end
+
+    test "when an async step returns `:error`" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(:first, fn _context -> :error end, async: true)
+        |> Extep.run(
+          :second,
+          fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return(:second)
+
+      assert extep == :error
+    end
+
+    test "when an async step returns `:error` and `label_error` option is set" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(:first, fn _context -> :error end, async: true)
+        |> Extep.run(
+          :second,
+          fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return(:second, label_error: true)
+
+      assert extep == {:error, %{first: :error}}
+    end
+
+    test "when an async step returns an `{:error, _}` tuple" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(:first, fn _context -> {:error, "step one error"} end, async: true)
+        |> Extep.run(
+          :second,
+          fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return(:second)
+
+      assert extep == {:error, "step one error"}
+    end
+
+    test "when an async step returns an `{:error, _}` tuple and `label_error` option is set" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(:first, fn _context -> {:error, "step one error"} end, async: true)
+        |> Extep.run(
+          :second,
+          fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return(:second, label_error: true)
+
+      assert extep == {:error, %{first: "step one error"}}
+    end
+
+    test "when an async step returns `:halt`" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(
+          :first,
+          fn %{initial: initial} -> {:ok, "step one result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(:second, fn _context -> :halt end, async: true)
+        |> Extep.return(:second)
+
+      assert extep == :ok
+    end
+
+    test "when an async step returns an `{:halt, _}` tuple" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(
+          :first,
+          fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(:second, fn _context -> {:halt, "step two halted"} end, async: true)
+        |> Extep.return(:second)
+
+      assert extep == {:ok, "step two halted"}
+    end
+  end
+
+  describe "full flow - steps with names - last step sync - return with step name - with `:set` option" do
+    test "returns custom ctx key when it's `:ok`" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(
+          :first,
+          fn %{initial: initial} -> {:ok, "step one result with #{initial}"} end,
+          async: true,
+          set: :custom_ctx_key
+        )
+        |> Extep.run(:second, fn _context -> :ok end, async: true)
+        |> Extep.return(:custom_ctx_key)
+
+      assert extep == {:ok, "step one result with initial state"}
+    end
+
+    test "overwrites and returns a step ctx_key when it's an `{:ok, _}` tuple" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(
+          :first,
+          fn %{initial: initial} -> {:ok, "step one result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.run(
+          :second,
+          fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true,
+          set: :initial
+        )
+        |> Extep.return(:initial)
+
+      assert extep == {:ok, "step two result with initial state"}
+    end
+
+    test "when an async step returns `:error`" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(:first, fn _context -> :error end, async: true, set: :custom_ctx_key)
+        |> Extep.run(
+          :second,
+          fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return(:custom_ctx_key)
+
+      assert extep == :error
+    end
+
+    test "when an async step returns `:error` and `label_error` option is set, does not set the custom key" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(:first, fn _context -> :error end, async: true, set: :custom_ctx_key)
+        |> Extep.run(
+          :second,
+          fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return(:custom_ctx_key, label_error: true)
+
+      assert extep == {:error, %{first: :error}}
+    end
+
+    test "when an async step returns an `{:error, _}` tuple" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(:first, fn _context -> {:error, "step one error"} end,
+          async: true,
+          set: :custom_ctx_key
+        )
+        |> Extep.run(
+          :second,
+          fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return(:custom_ctx_key)
+
+      assert extep == {:error, "step one error"}
+    end
+
+    test "when an async step returns an `{:error, _}` tuple and `label_error` option is set, does not set the custom key" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(:first, fn _context -> {:error, "step one error"} end,
+          async: true,
+          set: :custome_ctx_key
+        )
+        |> Extep.run(
+          :second,
+          fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true
+        )
+        |> Extep.return(:custome_ctx_key, label_error: true)
+
+      assert extep == {:error, %{first: "step one error"}}
+    end
+
+    test "when an async step returns `:halt`" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(
+          :first,
+          fn %{initial: initial} -> {:ok, "step one result with #{initial}"} end,
+          async: true,
+          set: :custom_ctx_key
+        )
+        |> Extep.run(:second, fn _context -> :halt end, async: true)
+        |> Extep.return(:custom_ctx_key)
+
+      assert extep == :ok
+    end
+
+    test "when an async step returns an `{:halt, _}` tuple" do
+      extep =
+        %{initial: "initial state"}
+        |> Extep.new()
+        |> Extep.run(
+          :first,
+          fn %{initial: initial} -> {:ok, "step two result with #{initial}"} end,
+          async: true,
+          set: :custom_ctx_key
+        )
+        |> Extep.run(:second, fn _context -> {:halt, "step two halted"} end, async: true)
+        |> Extep.return(:custom_ctx_key)
+
+      assert extep == {:ok, "step two halted"}
+    end
   end
 end
