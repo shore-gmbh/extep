@@ -1,4 +1,6 @@
 defmodule Extep do
+  use Application
+
   defstruct status: :ok,
             context: %{},
             last_step: nil,
@@ -29,6 +31,17 @@ defmodule Extep do
   @type opts :: keyword()
 
   defguardp is_halted(status) when status in [:halted, :error]
+
+  def start(_type, _args) do
+    import Supervisor.Spec, warn: false
+
+    children = [
+      {Task.Supervisor, name: Extep.AsyncStepSupervisor}
+    ]
+
+    opts = [strategy: :one_for_one, name: Extep.Supervisor]
+    Supervisor.start_link(children, opts)
+  end
 
   @doc """
   Returns an `%Extep{}` struct with empty context.
@@ -109,7 +122,7 @@ defmodule Extep do
 
   defp run_async(extep, ctx_key, fun, opts) do
     async_step =
-      Task.async(fn ->
+      Task.Supervisor.async(Extep.AsyncStepSupervisor, fn ->
         step_result = fun.(extep.context)
         %{ctx_key: ctx_key, step_result: step_result, opts: opts}
       end)
@@ -259,5 +272,5 @@ end
 # TODO:
 #   [X] Add `:set` option
 #   [X] Add `:label_error` option
-#   [x] Add `:async` option
-#   [ ] Add Task supervisor
+#   [X] Add `:async` option
+#   [X] Add Task supervisor
