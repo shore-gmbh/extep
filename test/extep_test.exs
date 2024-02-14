@@ -106,7 +106,8 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       extep =
@@ -118,7 +119,8 @@ defmodule ExtepTest do
                status: :ok,
                context: %{:initial => "value", 0 => "first", 1 => "second", 2 => "third"},
                last_step: 2,
-               last_step_idx: 2
+               last_step_idx: 2,
+               halted_at_step: nil
              }
     end
 
@@ -127,14 +129,16 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       assert Extep.run(extep, fn _context -> :halt end) == %Extep{
                status: :halted,
                context: %{:initial => "value", 0 => "first", 1 => :halt},
                last_step: 1,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: 1
              }
     end
 
@@ -143,14 +147,16 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       assert Extep.run(extep, fn _context -> :halt end, set: :foo) == %Extep{
                status: :halted,
                context: %{:initial => "value", 0 => "first", 1 => :halt},
                last_step: 1,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: 1
              }
     end
 
@@ -159,7 +165,8 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       extep =
@@ -171,7 +178,8 @@ defmodule ExtepTest do
                status: :halted,
                context: %{:initial => "value", 0 => "first", 1 => :halt},
                last_step: 1,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: 1
              }
     end
 
@@ -180,14 +188,16 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       assert Extep.run(extep, fn _context -> {:halt, "halted in second"} end) == %Extep{
                status: :halted,
                context: %{:initial => "value", 0 => "first", 1 => "halted in second"},
                last_step: 1,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: 1
              }
     end
 
@@ -196,7 +206,8 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       extep =
@@ -208,7 +219,8 @@ defmodule ExtepTest do
                status: :halted,
                context: %{:initial => "value", 0 => "first", 1 => "halted in second"},
                last_step: 1,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: 1
              }
     end
 
@@ -217,14 +229,16 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       assert Extep.run(extep, fn _context -> :error end) == %Extep{
                status: :error,
                context: %{:initial => "value", 0 => "first", 1 => :error},
                last_step: 1,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: 1
              }
     end
 
@@ -233,14 +247,16 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       assert Extep.run(extep, fn _context -> :error end, set: :foo) == %Extep{
                status: :error,
                context: %{:initial => "value", 0 => "first", 1 => :error},
                last_step: 1,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: 1
              }
     end
 
@@ -249,7 +265,8 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       extep =
@@ -261,7 +278,8 @@ defmodule ExtepTest do
                status: :error,
                context: %{:initial => "value", 0 => "first", 1 => :error},
                last_step: 1,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: 1
              }
     end
 
@@ -270,14 +288,16 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       assert Extep.run(extep, fn _context -> {:error, "error in second"} end) == %Extep{
                status: :error,
                context: %{:initial => "value", 0 => "first", 1 => "error in second"},
                last_step: 1,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: 1
              }
     end
 
@@ -286,7 +306,8 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       extep =
@@ -298,7 +319,8 @@ defmodule ExtepTest do
                status: :error,
                context: %{:initial => "value", 0 => "first", 1 => "error in second"},
                last_step: 1,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: 1
              }
     end
 
@@ -311,35 +333,22 @@ defmodule ExtepTest do
     end
   end
 
-  describe "run/3 with `async: true` opts" do
+  describe "run/3 with `async: true` option" do
     test "sets an async step to the `async_steps` key" do
-      extep = %Extep{
-        status: :ok,
-        context: %{},
-        last_step: nil,
-        last_step_idx: nil,
-        async_steps: []
-      }
+      extep = %Extep{}
 
       assert %Extep{
                status: :ok,
                context: %{},
-               last_step: nil,
-               last_step_idx: nil,
-               async_steps: [{0, pid}]
+               last_step: 0,
+               last_step_idx: 0,
+               halted_at_step: nil,
+               async_steps: [%Task{}]
              } = Extep.run(extep, fn _context -> :ok end, async: true)
-
-      assert is_pid(pid)
     end
 
-    test "todo" do
-      extep = %Extep{
-        status: :ok,
-        context: %{},
-        last_step: nil,
-        last_step_idx: nil,
-        async_steps: []
-      }
+    test "await and clear async_steps in the next sync step" do
+      extep = %Extep{}
 
       extep =
         extep
@@ -352,6 +361,86 @@ defmodule ExtepTest do
                context: %{0 => :ok, 1 => :ok, 2 => :ok},
                last_step: 2,
                last_step_idx: 2,
+               async_steps: []
+             } = extep
+    end
+
+    test "sets the halted_at_step for an async step `:error`" do
+      extep = %Extep{}
+
+      extep =
+        extep
+        |> Extep.run(fn _context -> :ok end, async: true)
+        |> Extep.run(fn _context -> :error end, async: true)
+        |> Extep.run(fn _context -> :ok end, async: true)
+        |> Extep.run(fn _context -> :ok end)
+
+      assert %Extep{
+               status: :error,
+               context: %{0 => :ok, 1 => :error, 2 => :ok},
+               last_step: 2,
+               last_step_idx: 2,
+               halted_at_step: 1,
+               async_steps: []
+             } = extep
+    end
+
+    test "sets the halted_at_step for an async step `{:error, _}` tuple" do
+      extep = %Extep{}
+
+      extep =
+        extep
+        |> Extep.run(fn _context -> :ok end, async: true)
+        |> Extep.run(fn _context -> {:error, "error in second"} end, async: true)
+        |> Extep.run(fn _context -> :ok end, async: true)
+        |> Extep.run(fn _context -> :ok end)
+
+      assert %Extep{
+               status: :error,
+               context: %{0 => :ok, 1 => "error in second", 2 => :ok},
+               last_step: 2,
+               last_step_idx: 2,
+               halted_at_step: 1,
+               async_steps: []
+             } = extep
+    end
+
+    test "sets the halted_at_step for an async step `halt`" do
+      extep = %Extep{}
+
+      extep =
+        extep
+        |> Extep.run(fn _context -> :ok end, async: true)
+        |> Extep.run(fn _context -> :halt end, async: true)
+        |> Extep.run(fn _context -> :ok end, async: true)
+        |> Extep.run(fn _context -> :ok end)
+
+      assert %Extep{
+               status: :halted,
+               context: %{0 => :ok, 1 => :halt, 2 => :ok},
+               last_step: 2,
+               last_step_idx: 2,
+               halted_at_step: 1,
+               async_steps: []
+             } = extep
+    end
+
+    test "sets the halted_at_step for an async step `{:halt, _}` tuple" do
+      extep = %Extep{}
+
+      extep =
+        extep
+        |> Extep.run(fn _context -> :ok end, async: true)
+        |> Extep.run(fn _context -> {:halt, "halted in second"} end, async: true)
+        |> Extep.run(fn _context -> :ok end, async: true)
+        |> Extep.run(fn _context -> :ok end)
+
+      assert %Extep{
+               status: :halted,
+               context: %{0 => :ok, 1 => "halted in second", 2 => :ok},
+               last_step: 2,
+               last_step_idx: 2,
+               halted_at_step: 1,
                async_steps: []
              } = extep
     end
@@ -485,14 +574,16 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       assert Extep.run(extep, :second, fn _context -> :halt end) == %Extep{
                status: :halted,
                context: %{:initial => "value", 0 => "first", :second => :halt},
                last_step: :second,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: :second
              }
     end
 
@@ -501,14 +592,16 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       assert Extep.run(extep, :second, fn _context -> :halt end, set: :foo) == %Extep{
                status: :halted,
                context: %{:initial => "value", 0 => "first", :second => :halt},
                last_step: :second,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: :second
              }
     end
 
@@ -517,7 +610,8 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       extep =
@@ -529,7 +623,8 @@ defmodule ExtepTest do
                status: :halted,
                context: %{:initial => "value", 0 => "first", :second => :halt},
                last_step: :second,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: :second
              }
     end
 
@@ -538,14 +633,16 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       assert Extep.run(extep, :second, fn _context -> {:halt, "halted in second"} end) == %Extep{
                status: :halted,
                context: %{:initial => "value", 0 => "first", :second => "halted in second"},
                last_step: :second,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: :second
              }
     end
 
@@ -554,7 +651,8 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       assert Extep.run(extep, :second, fn _context -> {:halt, "halted in second"} end, set: :foo) ==
@@ -562,7 +660,8 @@ defmodule ExtepTest do
                  status: :halted,
                  context: %{:initial => "value", 0 => "first", :second => "halted in second"},
                  last_step: :second,
-                 last_step_idx: 1
+                 last_step_idx: 1,
+                 halted_at_step: :second
                }
     end
 
@@ -571,7 +670,8 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       extep =
@@ -583,7 +683,8 @@ defmodule ExtepTest do
                status: :halted,
                context: %{:initial => "value", 0 => "first", :second => "halted in second"},
                last_step: :second,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: :second
              }
     end
 
@@ -592,14 +693,16 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       assert Extep.run(extep, :second, fn _context -> :error end) == %Extep{
                status: :error,
                context: %{:initial => "value", 0 => "first", :second => :error},
                last_step: :second,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: :second
              }
     end
 
@@ -608,14 +711,16 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       assert Extep.run(extep, :second, fn _context -> :error end, set: :foo) == %Extep{
                status: :error,
                context: %{:initial => "value", 0 => "first", :second => :error},
                last_step: :second,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: :second
              }
     end
 
@@ -624,7 +729,8 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       extep =
@@ -636,7 +742,8 @@ defmodule ExtepTest do
                status: :error,
                context: %{:initial => "value", 0 => "first", :second => :error},
                last_step: :second,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: :second
              }
     end
 
@@ -645,14 +752,16 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       assert Extep.run(extep, :second, fn _context -> {:error, "error in second"} end) == %Extep{
                status: :error,
                context: %{:initial => "value", 0 => "first", :second => "error in second"},
                last_step: :second,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: :second
              }
     end
 
@@ -661,7 +770,8 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       assert Extep.run(extep, :second, fn _context -> {:error, "error in second"} end, set: :foo) ==
@@ -669,7 +779,8 @@ defmodule ExtepTest do
                  status: :error,
                  context: %{:initial => "value", 0 => "first", :second => "error in second"},
                  last_step: :second,
-                 last_step_idx: 1
+                 last_step_idx: 1,
+                 halted_at_step: :second
                }
     end
 
@@ -678,7 +789,8 @@ defmodule ExtepTest do
         status: :ok,
         context: %{:initial => "value", 0 => "first"},
         last_step: 0,
-        last_step_idx: 0
+        last_step_idx: 0,
+        halted_at_step: nil
       }
 
       extep =
@@ -690,7 +802,8 @@ defmodule ExtepTest do
                status: :error,
                context: %{:initial => "value", 0 => "first", :second => "error in second"},
                last_step: :second,
-               last_step_idx: 1
+               last_step_idx: 1,
+               halted_at_step: :second
              }
     end
 
@@ -700,6 +813,119 @@ defmodule ExtepTest do
       assert_raise Extep.InvalidFunctionReturn, fn ->
         Extep.run(extep, :first, fn _context -> :invalid_return end)
       end
+    end
+  end
+
+  describe "run/4 with `async: true` option" do
+    test "sets an async step to the `async_steps` key" do
+      extep = %Extep{}
+
+      assert %Extep{
+               status: :ok,
+               context: %{},
+               last_step: :first,
+               last_step_idx: 0,
+               halted_at_step: nil,
+               async_steps: [%Task{}]
+             } = Extep.run(extep, :first, fn _context -> :ok end, async: true)
+    end
+
+    test "await and clear async_steps in the next sync step" do
+      extep = %Extep{}
+
+      extep =
+        extep
+        |> Extep.run(:first, fn _context -> :ok end, async: true)
+        |> Extep.run(:second, fn _context -> :ok end, async: true)
+        |> Extep.run(:third, fn _context -> :ok end)
+
+      assert %Extep{
+               status: :ok,
+               context: %{:first => :ok, :second => :ok, :third => :ok},
+               last_step: :third,
+               last_step_idx: 2,
+               async_steps: []
+             } = extep
+    end
+
+    test "sets the halted_at_step for an async step error" do
+      extep = %Extep{}
+
+      extep =
+        extep
+        |> Extep.run(:first, fn _context -> :ok end, async: true)
+        |> Extep.run(:second, fn _context -> :error end, async: true)
+        |> Extep.run(:third, fn _context -> :ok end, async: true)
+        |> Extep.run(:fourth, fn _context -> :ok end)
+
+      assert %Extep{
+               status: :error,
+               context: %{:first => :ok, :second => :error, :third => :ok},
+               last_step: :third,
+               last_step_idx: 2,
+               halted_at_step: :second,
+               async_steps: []
+             } = extep
+    end
+
+    test "sets the halted_at_step for an async step `{:error, _}` tuple" do
+      extep = %Extep{}
+
+      extep =
+        extep
+        |> Extep.run(:first, fn _context -> :ok end, async: true)
+        |> Extep.run(:second, fn _context -> {:error, "error in second"} end, async: true)
+        |> Extep.run(:third, fn _context -> :ok end, async: true)
+        |> Extep.run(:fourth, fn _context -> :ok end)
+
+      assert %Extep{
+               status: :error,
+               context: %{:first => :ok, :second => "error in second", :third => :ok},
+               last_step: :third,
+               last_step_idx: 2,
+               halted_at_step: :second,
+               async_steps: []
+             } = extep
+    end
+
+    test "sets the halted_at_step for an async step halt" do
+      extep = %Extep{}
+
+      extep =
+        extep
+        |> Extep.run(:first, fn _context -> :ok end, async: true)
+        |> Extep.run(:second, fn _context -> :halt end, async: true)
+        |> Extep.run(:third, fn _context -> :ok end, async: true)
+        |> Extep.run(:fourth, fn _context -> :ok end)
+
+      assert %Extep{
+               status: :halted,
+               context: %{:first => :ok, :second => :halt, :third => :ok},
+               last_step: :third,
+               last_step_idx: 2,
+               halted_at_step: :second,
+               async_steps: []
+             } = extep
+    end
+
+    test "sets the halted_at_step for an async step `{:halt, _}` tuple" do
+      extep = %Extep{}
+
+      extep =
+        extep
+        |> Extep.run(:first, fn _context -> :ok end, async: true)
+        |> Extep.run(:second, fn _context -> {:halt, "halted in second"} end, async: true)
+        |> Extep.run(:third, fn _context -> :ok end, async: true)
+        |> Extep.run(:fourth, fn _context -> :ok end)
+
+      assert %Extep{
+               status: :halted,
+               context: %{:first => :ok, :second => "halted in second", :third => :ok},
+               last_step: :third,
+               last_step_idx: 2,
+               halted_at_step: :second,
+               async_steps: []
+             } = extep
     end
   end
 
@@ -799,7 +1025,8 @@ defmodule ExtepTest do
         status: :error,
         context: %{first: "first", second: :error},
         last_step: :second,
-        last_step_idx: 1
+        last_step_idx: 1,
+        halted_at_step: :second
       }
 
       assert Extep.return(extep, :third, label_error: true) == {:error, :second}
@@ -810,7 +1037,8 @@ defmodule ExtepTest do
         status: :halted,
         context: %{first: "first", second: "halted in second"},
         last_step: :second,
-        last_step_idx: 1
+        last_step_idx: 1,
+        halted_at_step: :second
       }
 
       assert Extep.return(extep, :third) == {:ok, "halted in second"}
@@ -821,7 +1049,8 @@ defmodule ExtepTest do
         status: :error,
         context: %{first: "first", second: "error in second"},
         last_step: :second,
-        last_step_idx: 1
+        last_step_idx: 1,
+        halted_at_step: :second
       }
 
       assert Extep.return(extep, :third) == {:error, "error in second"}
@@ -832,11 +1061,15 @@ defmodule ExtepTest do
         status: :error,
         context: %{first: "first", second: "error in second"},
         last_step: :second,
-        last_step_idx: 1
+        last_step_idx: 1,
+        halted_at_step: :second
       }
 
       assert Extep.return(extep, :third, label_error: true) ==
                {:error, %{second: "error in second"}}
     end
+  end
+
+  describe "full flow" do
   end
 end

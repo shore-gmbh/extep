@@ -17,7 +17,7 @@ defmodule Extep do
           last_step: any(),
           last_step_idx: nil | non_neg_integer(),
           halted_at_step: any(),
-          async_steps: keyword({atom(), pid()})
+          async_steps: list(Task.t())
         }
 
   @type ctx_key :: atom() | non_neg_integer() | {atom(), non_neg_integer()}
@@ -103,7 +103,6 @@ defmodule Extep do
     async_step =
       Task.async(fn ->
         step_result = fun.(extep.context)
-
         %{ctx_key: ctx_key, step_result: step_result, opts: opts}
       end)
 
@@ -117,7 +116,7 @@ defmodule Extep do
 
     extep
     |> put_context(step_result, ctx_key, opts)
-    |> maybe_put_halted_at_step(step_result, ctx_key)
+    |> put_halted_at_step(step_result, ctx_key)
     |> put_status(step_result)
     |> put_last_step(ctx_key)
   end
@@ -138,7 +137,7 @@ defmodule Extep do
     |> Enum.reduce(extep, fn %{ctx_key: ctx_key, step_result: step_result, opts: opts}, acc ->
       acc
       |> put_context(step_result, ctx_key, opts)
-      |> maybe_put_halted_at_step(step_result, ctx_key)
+      |> put_halted_at_step(step_result, ctx_key)
       |> put_status(step_result)
     end)
     |> Map.put(:async_steps, [])
@@ -157,14 +156,14 @@ defmodule Extep do
 
   defp put_status(%Extep{status: status} = extep, _step_result) when is_halted(status), do: extep
 
-  defp maybe_put_halted_at_step(%Extep{status: :ok} = extep, step_result, ctx_key) do
+  defp put_halted_at_step(%Extep{status: :ok} = extep, step_result, ctx_key) do
     case fetch_status!(step_result) do
       :ok -> extep
       _ -> %{extep | halted_at_step: ctx_key}
     end
   end
 
-  defp maybe_put_halted_at_step(%Extep{status: status} = extep, _step_result, _ctx_key)
+  defp put_halted_at_step(%Extep{status: status} = extep, _step_result, _ctx_key)
        when is_halted(status) do
     extep
   end
