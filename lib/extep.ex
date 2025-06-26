@@ -44,9 +44,9 @@ defmodule Extep do
     extep
   end
 
-  @spec run(t(), context_mutator_fun(), context_key()) :: t()
-  def run(%Extep{status: :ok, context: context} = extep, fun, context_key)
-      when is_function(fun, 1) and is_atom(context_key) do
+  @spec run(t(), context_key(), context_mutator_fun()) :: t()
+  def run(%Extep{status: :ok, context: context} = extep, context_key, fun)
+      when is_atom(context_key) and is_function(fun, 1) do
     case apply(fun, [context]) do
       {:ok, return} ->
         context = Map.put(context, context_key, return)
@@ -58,8 +58,8 @@ defmodule Extep do
     end
   end
 
-  def run(%Extep{status: status} = extep, fun, context_key)
-      when status in [:halted, :error] and is_function(fun, 1) and is_atom(context_key) do
+  def run(%Extep{status: status} = extep, context_key, fun)
+      when status in [:halted, :error] and is_atom(context_key) and is_function(fun, 1) do
     extep
   end
 
