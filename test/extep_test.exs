@@ -1,17 +1,21 @@
 defmodule ExtepTest do
   use ExUnit.Case
 
-  describe "new/" do
+  describe "new/0" do
     test "returns an `Extep` struct with default values" do
       assert Extep.new() == %Extep{status: :ok, context: %{}, error: nil}
     end
   end
 
   describe "new/1" do
-    test "returns an `Extep` struct with the given context" do
+    test "returns an `Extep` struct when given a Map" do
       context = %{key: "value"}
 
       assert Extep.new(context) == %Extep{status: :ok, context: context, error: nil}
+    end
+
+    test "returns an `Extep` struct when given a Keyword" do
+      assert Extep.new(key: "value") == %Extep{status: :ok, context: %{key: "value"}, error: nil}
     end
   end
 

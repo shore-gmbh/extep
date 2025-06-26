@@ -25,6 +25,11 @@ defmodule Extep do
     %Extep{context: context}
   end
 
+  @spec new(Keyword.t()) :: t()
+  def new(context) when is_list(context) do
+    %Extep{context: Map.new(context)}
+  end
+
   @spec run(t(), context_checker_fun()) :: t()
   def run(%Extep{status: :ok, context: context} = extep, fun) when is_function(fun, 1) do
     case apply(fun, [context]) do
