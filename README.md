@@ -4,7 +4,7 @@
 
 **A tiny and friendly step runner for Elixir pipelines**
 
-Extep is a simple utility that helps you compose Elixir pipelines using a shared context. It's useful for building multi-step workflows that can gracefully **halt** or **error** along the way. Extep is a simple implementation of the Railway-oriented programming and it was inspired by Ecto.Multi [Ecto.Multi](https://hexdocs.pm/ecto/Ecto.Multi.html) and [Sage](https://hexdocs.pm/sage/readme.html).
+Extep is a simple utility that helps you compose Elixir pipelines using a shared context. It's useful for building multi-step workflows that can gracefully **halt** or **error** along the way. Extep is a simple implementation of the Railway-oriented programming and it was inspired by [Ecto.Multi](https://hexdocs.pm/ecto/Ecto.Multi.html) and [Sage](https://hexdocs.pm/sage/readme.html).
 
 ## Installation
 
@@ -17,6 +17,8 @@ def deps do
   ]
 end
 ```
+
+Documentation can be found at https://hexdocs.pm/extep.
 
 ## Basic Usage
 
@@ -67,10 +69,10 @@ Extep.new(%{foo: "bar"})
 
 Runs a checker function that must return one of the following:
 
-- `:ok`: Continues the pipeline;
-- `{:ok, value}`: Continues the pipeline;
-- `{:halt, reason}`: Halts pipeline, stores `reason` in `:message`;
-- `{:error, reason}`: Errors out, stores `reason` in `:message`.
+- `:ok` continues the pipeline;
+- `{:ok, value}` continues the pipeline;
+- `{:halt, reason}` halts pipeline, stores `reason` in `:message`;
+- `{:error, reason}` errors out, stores `reason` in `:message`.
 
 ```elixir
 Extep.new(%{foo: 1})
@@ -82,9 +84,9 @@ Extep.new(%{foo: 1})
 
 Runs a mutator function and stores the result under the given key. It must return one of the following:
 
-- `{:ok, value}`: Continues the pipeline, saves `value` under the given key;
-- `{:halt, reason}`: Halts pipeline, stores `reason` in `:message`;
-- `{:error, reason}`: Errors out, stores `reason` in `:message`.
+- `{:ok, value}` continues the pipeline, saves `value` under the given key;
+- `{:halt, reason}` halts pipeline, stores `reason` in `:message`;
+- `{:error, reason}` errors out, stores `reason` in `:message`.
 
 ```elixir
 Extep.new(%{foo: 1})
