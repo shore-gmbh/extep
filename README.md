@@ -1,6 +1,6 @@
 # Extep
 
-![**Extep**](Extep.png)
+![**Extep**](https://raw.githubusercontent.com/shore-gmbh/extep/main/Extep.png)
 
 **A tiny and friendly step runner for Elixir pipelines**
 
