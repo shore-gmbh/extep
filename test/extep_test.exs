@@ -1,9 +1,10 @@
 defmodule ExtepTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
+  doctest Extep
 
   describe "new/0" do
     test "returns an `Extep` struct with default values" do
-      assert Extep.new() == %Extep{status: :ok, context: %{}, error: nil}
+      assert Extep.new() == %Extep{status: :ok, context: %{}, message: nil}
     end
   end
 
@@ -11,152 +12,120 @@ defmodule ExtepTest do
     test "returns an `Extep` struct when given a Map" do
       context = %{key: "value"}
 
-      assert Extep.new(context) == %Extep{status: :ok, context: context, error: nil}
-    end
-
-    test "returns an `Extep` struct when given a Keyword" do
-      assert Extep.new(key: "value") == %Extep{status: :ok, context: %{key: "value"}, error: nil}
+      assert Extep.new(context) == %Extep{status: :ok, context: context, message: nil}
     end
   end
 
   describe "run/2" do
-    test "when the given function returns ok" do
-      extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
-
-      assert Extep.run(extep, fn _context -> :ok end) == %Extep{
-               status: :ok,
-               context: %{key: "value"},
-               halted: nil,
-               error: nil
-             }
-    end
-
     test "doesn't modify the context when the given function returns an ok tuple" do
-      extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
+      extep = %Extep{status: :ok, context: %{key: "value"}, message: nil}
 
       assert Extep.run(extep, fn _context -> {:ok, "return"} end) == %Extep{
                status: :ok,
                context: %{key: "value"},
-               halted: nil,
-               error: nil
+               message: nil
              }
     end
 
-    test "when the given function returns halt" do
-      extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
+    test "doesn't modify the context when the given function returns `:ok`" do
+      extep = %Extep{status: :ok, context: %{key: "value"}, message: nil}
 
-      assert Extep.run(extep, fn _context -> :halt end) == %Extep{
+      assert Extep.run(extep, fn _context -> :ok end) == %Extep{
+               status: :ok,
+               context: %{key: "value"},
+               message: nil
+             }
+    end
+
+    test "doesn't modify the context when the given function returns a halt tuple and updates the message field" do
+      extep = %Extep{status: :ok, context: %{key: "value"}, message: nil}
+
+      assert Extep.run(extep, fn _context -> {:halt, "halt message"} end) == %Extep{
                status: :halted,
                context: %{key: "value"},
-               halted: nil,
-               error: nil
+               message: "halt message"
              }
     end
 
-    test "when the given function returns a halt tuple" do
-      extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
+    test "doesn't modify context when the given function returns an error tuple and puts the error message
+          under a key with the name of the functions when it's a defined module function" do
+      extep = %Extep{status: :ok, context: %{key: "value"}, message: nil}
 
-      assert Extep.run(extep, fn _context -> {:halt, "message"} end) == %Extep{
-               status: :halted,
-               context: %{key: "value"},
-               halted: "message",
-               error: nil
-             }
-    end
-
-    test "when the given function returns error" do
-      extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
-
-      assert Extep.run(extep, fn _context -> :error end) == %Extep{
+      assert Extep.run(extep, &return_error_tuple/1) == %Extep{
                status: :error,
                context: %{key: "value"},
-               halted: nil,
-               error: nil
+               message: %{return_error_tuple: "error message"}
              }
     end
 
-    test "when the given function returns an error tuple" do
-      extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
+    test "doesn't modify context when the given function returns an error tuple and and updates the message field" do
+      extep = %Extep{status: :ok, context: %{}, message: nil}
 
-      assert Extep.run(extep, fn _context -> {:error, "message"} end) == %Extep{
+      assert Extep.run(extep, fn _context -> {:error, "error message"} end) == %Extep{
                status: :error,
-               context: %{key: "value"},
-               halted: nil,
-               error: "message"
+               context: %{},
+               message: %{no_context_key: "error message"}
              }
     end
   end
 
   describe "run/3" do
     test "raises when the given function returns ok" do
-      extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
+      extep = %Extep{status: :ok, context: %{key: "value"}, message: nil}
 
-      assert_raise FunctionClauseError, fn -> Extep.run(extep, fn _context -> :ok end, :key) end
+      assert_raise FunctionClauseError, fn -> Extep.run(extep, :key, fn _context -> :ok end) end
     end
 
-    test "updates the context when the given function returns an ok tuple" do
-      extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
+    test "updates an existing context field when the given function returns an ok tuple" do
+      extep = %Extep{status: :ok, context: %{existing_key: "value"}, message: nil}
 
-      assert Extep.run(extep, fn _context -> {:ok, "new value"} end, :key) == %Extep{
+      assert Extep.run(extep, :existing_key, fn _context -> {:ok, "new value"} end) == %Extep{
                status: :ok,
-               context: %{key: "new value"},
-               halted: nil,
-               error: nil
+               context: %{existing_key: "new value"},
+               message: nil
              }
     end
 
-    test "adds a new value to context when the given function returns an ok tuple" do
-      extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
+    test "adds a new context context field when the given function returns an ok tuple" do
+      extep = %Extep{status: :ok, context: %{existing_key: "value"}, message: nil}
 
-      assert Extep.run(extep, fn _context -> {:ok, "another value"} end, :another_key) == %Extep{
+      assert Extep.run(extep, :new_key, fn _context -> {:ok, "new value"} end) == %Extep{
                status: :ok,
-               context: %{key: "value", another_key: "another value"},
-               halted: nil,
-               error: nil
-             }
-    end
-
-    test "doesn't modify context when the given function returns halt" do
-      extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
-
-      assert Extep.run(extep, fn _context -> :halt end, :key) == %Extep{
-               status: :halted,
-               context: %{key: "value"},
-               halted: nil,
-               error: nil
+               context: %{existing_key: "value", new_key: "new value"},
+               message: nil
              }
     end
 
     test "doesn't modify context when the given function returns halt tuple" do
-      extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
+      extep = %Extep{status: :ok, context: %{existing_key: "value"}, message: nil}
 
-      assert Extep.run(extep, fn _context -> {:halt, "message"} end, :key) == %Extep{
-               status: :halted,
-               context: %{key: "value"},
-               halted: "message",
-               error: nil
+      assert Extep.run(extep, :existing_key, fn _context -> {:halt, "halt message"} end) ==
+               %Extep{
+                 status: :halted,
+                 context: %{existing_key: "value"},
+                 message: "halt message"
+               }
+    end
+
+    test "doesn't modify context when the given function returns an error tuple and puts the error message
+          under a key with the name of the functions when it's a defined module function" do
+      extep = %Extep{status: :ok, context: %{}, message: nil}
+
+      assert Extep.run(extep, :new_key, &return_error_tuple/1) == %Extep{
+               status: :error,
+               context: %{},
+               message: %{return_error_tuple: "error message"}
              }
     end
 
-    test "doesn't modify context when the given function returns error" do
-      extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
+    test "doesn't modify context when the given function returns an error tuple and puts the error message
+          under a key with the name of the step when it's anonymous function" do
+      extep = %Extep{status: :ok, context: %{}, message: nil}
 
-      assert Extep.run(extep, fn _context -> :error end, :key) == %Extep{
+      assert Extep.run(extep, :new_key, fn _context -> {:error, "error message"} end) == %Extep{
                status: :error,
-               context: %{key: "value"},
-               halted: nil,
-               error: nil
-             }
-    end
-
-    test "doesn't modify context when the given function returns an error tuple" do
-      extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
-
-      assert Extep.run(extep, fn _context -> {:error, "message"} end, :key) == %Extep{
-               status: :error,
-               context: %{key: "value"},
-               halted: nil,
-               error: "message"
+               context: %{},
+               message: %{new_key: "error message"}
              }
     end
   end
@@ -164,41 +133,50 @@ defmodule ExtepTest do
   describe "return/2 for context key" do
     test "returns the value from the given context key as an ok tuple" do
       context = %{key: "value", another_key: "antother value"}
-      extep = %Extep{status: :ok, context: context, error: nil}
+      extep = %Extep{status: :ok, context: context, message: nil}
 
       assert Extep.return(extep, :key) == {:ok, "value"}
     end
 
     test "returns the halted value when `%Extep{}` status is `:halted`" do
-      extep = %Extep{status: :halted, context: %{key: "value"}, halted: "message"}
+      extep = %Extep{status: :halted, context: %{key: "value"}, message: "halt message"}
 
-      assert Extep.return(extep, :key) == {:ok, "message"}
+      assert Extep.return(extep, :key) == {:ok, "halt message"}
     end
 
     test "returns an error tuple when the `%Extep{}` status is `:error`" do
-      extep = %Extep{status: :error, context: %{key: "value"}, error: "message"}
+      extep = %Extep{status: :error, context: %{key: "value"}, message: "error message"}
 
-      assert Extep.return(extep, :key) == {:error, "message"}
+      assert Extep.return(extep, :key) == {:error, "error message"}
     end
   end
 
   describe "return/2 for function" do
     test "returns the result of the given function" do
-      extep = %Extep{status: :ok, context: %{key: "value"}, error: nil}
+      extep = %Extep{status: :ok, context: %{key: "value"}, message: nil}
 
-      assert Extep.return(extep, &Map.get(&1, :key)) == "value"
+      assert Extep.return(extep, fn _context -> {:ok, "new value"} end) == {:ok, "new value"}
     end
 
     test "returns the halted value when `%Extep{}` status is `:halted`" do
-      extep = %Extep{status: :halted, context: %{key: "value"}, halted: "message"}
+      extep = %Extep{status: :halted, context: %{key: "value"}, message: "message"}
 
-      assert Extep.return(extep, &Map.get(&1, :key)) == {:ok, "message"}
+      assert Extep.return(extep, fn _context -> {:ok, "new value"} end) == {:ok, "message"}
     end
 
     test "returns an error tuple when the `%Extep{}` status is `:error`" do
-      extep = %Extep{status: :error, context: %{key: "value"}, error: "message"}
+      extep = %Extep{status: :error, context: %{key: "value"}, message: "message"}
 
-      assert Extep.return(extep, &Map.get(&1, :key)) == {:error, "message"}
+      assert Extep.return(extep, fn _context -> {:ok, "new value"} end) == {:error, "message"}
     end
   end
+
+  def return_error_tuple(_ctx), do: {:error, "error message"}
+
+  # Doctests helpers
+
+  def validate_params(ctx), do: {:ok, ctx.params}
+  def fetch_user(_ctx), do: {:ok, %{}}
+  def fetch_items(_ctx), do: {:ok, []}
+  def create_subscription(_ctx), do: {:ok, %{id: 123, object: "subscription"}}
 end
