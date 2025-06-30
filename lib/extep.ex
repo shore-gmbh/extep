@@ -187,7 +187,7 @@ defmodule Extep do
       ...> |> Extep.run(:bar, fn ctx -> {:ok, ctx.foo + 1} end)
       ...> |> Extep.run(fn _ctx -> {:error, "error message"} end)
       ...> |> Extep.return(:bar)
-      {:error, %{no_context_key:: "error message"}}
+      {:error, %{no_context_key: "error message"}}
 
       iex> Extep.new(%{foo: 1})
       ...> |> Extep.run(:bar, fn ctx -> {:ok, ctx.foo + 1} end)
