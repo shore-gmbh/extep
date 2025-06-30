@@ -1,10 +1,10 @@
 # Extep
 
-**A tiny, friendly step runner for Elixir pipelines**
+![**Extep**](Extep.png)
+
+**A tiny and friendly step runner for Elixir pipelines**
 
 Extep is a simple utility that helps you compose Elixir pipelines using a shared context. It's especially useful for building multi-step workflows that can gracefully **halt** or **error** along the way.
-
----
 
 ## Installation
 
@@ -17,8 +17,6 @@ def deps do
   ]
 end
 ```
-
----
 
 ## Basic Usage
 
@@ -45,8 +43,6 @@ def create_subscription(%{user: user, items: items}) do
 end
 ```
 
----
-
 ## API
 
 ### `Extep.new/0`
@@ -70,6 +66,12 @@ Extep.new(%{foo: "bar"})
 ### `Extep.run/2`
 
 Runs a checker function:
+The function must have one of the following returns:
+
+- `:ok`: Continues the pipeline
+- `{:ok, value}`: Continues the pipeline
+- `{:halt, reason}`: Halts pipeline, stores `reason` in `:message`
+- `{:error, reason}`: Errors out, stores `reason` in `:message`
 
 ```elixir
 Extep.new(%{foo: 1})
@@ -79,7 +81,12 @@ Extep.new(%{foo: 1})
 
 ### `Extep.run/3`
 
-Runs a mutator function and stores the result under the given key:
+Runs a mutator function and stores the result under the given key.
+The function must have one of the following returns:
+
+- `{:ok, value}`: Continues the pipeline, saves `value` under the given key
+- `{:halt, reason}`: Halts pipeline, stores `reason` in `:message`
+- `{:error, reason}`: Errors out, stores `reason` in `:message`
 
 ```elixir
 Extep.new(%{foo: 1})
@@ -108,26 +115,9 @@ Extep.new(%{foo: 1})
 #=> {:ok, 1}
 ```
 
----
-
-## Return Behavior
-
-Extep understands four kinds of step return values:
-
-| Return value       | Effect                                          |
-| ------------------ | ----------------------------------------------- |
-| `:ok`              | Continues pipeline (only for checker functions) |
-| `{:ok, value}`     | Continues, saves `value` (only in `run/3`)      |
-| `{:halt, reason}`  | Halts pipeline, stores `reason` in `:message`   |
-| `{:error, reason}` | Errors out, stores `reason` in `:message`       |
-
----
-
 ## Error Messages
 
 If a step fails or halts, Extep stores the reason in the `:message` field. For functions passed to `run/3`, the key is the same as the context key. For anonymous functions in `run/2`, the key is `:no_context_key`.
-
----
 
 ## License
 

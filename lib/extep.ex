@@ -57,12 +57,11 @@ defmodule Extep do
   end
 
   @doc """
-  Runs a checker function on the context. This version of `run/2` doesn't change
-  the context, it just checks something.
+  Runs a checker function on the context without changing it.
 
   If the function returns `:ok` or `{:ok, "value"}`, the pipeline continues.
-  If it returns `{:halt, "reason"}` or `{:error, "reason"}`, the pipeline stops and saves
-  the reason in the `:message` field of the Extep struct.
+  If it returns `{:halt, "reason"}` or `{:error, "reason"}`, the pipeline stops and
+  the reason is set in the `:message` field of the Extep struct.
 
   ## Examples
 
@@ -105,8 +104,8 @@ defmodule Extep do
 
   If the function returns `{:ok, "value"}`, "value" is set to the given key and the
   pipeline continues.
-  If it returns `{:halt, "reason"}` or `{:error, "reason"}`, the pipeline stops and saves
-  the reason in the `:message` field of the Extep struct.
+  If it returns `{:halt, "reason"}` or `{:error, "reason"}`, the pipeline stops and
+  the reason is set in the `:message` field of the Extep struct.
 
   ## Examples
 
@@ -158,34 +157,47 @@ defmodule Extep do
 
       iex> Extep.new(%{foo: 1})
       ...> |> Extep.run(:bar, fn ctx -> {:ok, ctx.foo + 1} end)
+      ...> |> Extep.return(fn ctx -> {:ok, ctx.bar + 2} end)
+      {:ok, 4}
+
+      iex> Extep.new(%{foo: 1})
+      ...> |> Extep.run(:bar, fn ctx -> {:ok, ctx.foo + 1} end)
       ...> |> Extep.run(:baz, fn ctx -> {:ok, ctx.bar + 2} end)
       ...> |> Extep.return(:bar)
       {:ok, 2}
 
       iex> Extep.new(%{foo: 1})
       ...> |> Extep.run(:bar, fn ctx -> {:ok, ctx.foo + 1} end)
-      ...> |> Extep.return(fn ctx -> {:ok, ctx.bar + 2} end)
-      {:ok, 4}
+      ...> |> Extep.return(&return_error_tuple/1)
+      {:error, %{return_error_tuple: "error message"}}
 
       iex> Extep.new(%{foo: 1})
-      ...> |> Extep.run(:bar, &return_error_tuple/1)
+      ...> |> Extep.run(:bar, fn ctx -> {:ok, ctx.foo + 1} end)
+      ...> |> Extep.run(:baz, &return_error_tuple/1)
       ...> |> Extep.return(:bar)
       {:error, %{return_error_tuple: "error message"}}
 
       iex> Extep.new(%{foo: 1})
-      ...> |> Extep.run(:bar, fn _ctx -> {:error, "error message"} end)
+      ...> |> Extep.run(:bar, fn ctx -> {:ok, ctx.foo + 1} end)
+      ...> |> Extep.run(:baz, fn _ctx -> {:error, "error message"} end)
       ...> |> Extep.return(:bar)
-      {:error, %{bar: "error message"}}
+      {:error, %{baz: "error message"}}
+
+      iex> Extep.new(%{foo: 1})
+      ...> |> Extep.run(:bar, fn ctx -> {:ok, ctx.foo + 1} end)
+      ...> |> Extep.run(fn _ctx -> {:error, "error message"} end)
+      ...> |> Extep.return(:bar)
+      {:error, %{no_context_key:: "error message"}}
+
+      iex> Extep.new(%{foo: 1})
+      ...> |> Extep.run(:bar, fn ctx -> {:ok, ctx.foo + 1} end)
+      ...> |> Extep.return(fn _ctx -> {:halt, "halt message"} end)
+      {:ok, "halt message"}
 
       iex> Extep.new(%{foo: 1})
       ...> |> Extep.run(:bar, fn ctx -> {:ok, ctx.foo + 1} end)
       ...> |> Extep.run(:baz, fn _ctx -> {:halt, "halt message"} end)
       ...> |> Extep.return(:bar)
-      {:ok, "halt message"}
-
-      iex> Extep.new(%{foo: 1})
-      ...> |> Extep.run(:bar, fn ctx -> {:ok, ctx.foo + 1} end)
-      ...> |> Extep.return(fn _ctx -> {:halt, "halt message"} end)
       {:ok, "halt message"}
   """
   @spec return(t(), context_mutator_fun() | context_key()) :: any()
