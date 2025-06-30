@@ -1,6 +1,6 @@
 defmodule Extep do
   @moduledoc """
-  A tiny, friendly step runner for managing pipeline-style operations
+  A tiny and friendly step runner for managing pipeline-style operations
   where you can halt or error out at any point.
 
   `Extep` helps you chain together multiple mutations and checks on a shared context map.
