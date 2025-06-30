@@ -65,8 +65,7 @@ Extep.new(%{foo: "bar"})
 
 ### `Extep.run/2`
 
-Runs a checker function:
-The function must have one of the following returns:
+Runs a checker function that must return one of the following:
 
 - `:ok`: Continues the pipeline
 - `{:ok, value}`: Continues the pipeline
@@ -81,8 +80,7 @@ Extep.new(%{foo: 1})
 
 ### `Extep.run/3`
 
-Runs a mutator function and stores the result under the given key.
-The function must have one of the following returns:
+Runs a mutator function and stores the result under the given key. It must return one of the following:
 
 - `{:ok, value}`: Continues the pipeline, saves `value` under the given key
 - `{:halt, reason}`: Halts pipeline, stores `reason` in `:message`
