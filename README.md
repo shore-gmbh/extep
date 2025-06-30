@@ -4,7 +4,7 @@
 
 **A tiny and friendly step runner for Elixir pipelines**
 
-Extep is a simple utility that helps you compose Elixir pipelines using a shared context. It's useful for building multi-step workflows that can gracefully **halt** or **error** along the way. Extep is a simple implementation of the Railway-oriented programming and it was inspired by [Ecto.Multi](https://hexdocs.pm/ecto/Ecto.Multi.html) and [Sage](https://hexdocs.pm/sage/readme.html).
+Extep is a simple and dependency-free utility that helps you compose Elixir pipelines using a shared context. It's useful for building multi-step workflows that can gracefully **halt** or **error** along the way. Extep is an implementation of the Railway-oriented programming and it was inspired by [Ecto.Multi](https://hexdocs.pm/ecto/Ecto.Multi.html) and [Sage](https://hexdocs.pm/sage/readme.html).
 
 ## Installation
 

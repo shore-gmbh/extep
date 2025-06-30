@@ -1,10 +1,11 @@
 defmodule Extep do
   @moduledoc """
-  A tiny and friendly step runner for managing pipeline-style operations
-  where you can halt or error out at any point.
+  A tiny and friendly step runner for Elixir pipelines
 
-  `Extep` helps you chain together multiple mutations and checks on a shared context map.
-  Each step can decide to continue, halt, or error, and you can inspect the result at the end.
+  Extep is a simple and dependency-free utility that helps you compose Elixir pipelines using a shared context.
+  It's useful for building multi-step workflows that can gracefully **halt** or **error** along the way.
+  Extep is an implementation of the Railway-oriented programming and it was inspired by
+  [Ecto.Multi](https://hexdocs.pm/ecto/Ecto.Multi.html) and [Sage](https://hexdocs.pm/sage/readme.html).
 
   ## Example
 
