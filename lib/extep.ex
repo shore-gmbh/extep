@@ -1,10 +1,10 @@
 defmodule Extep do
   @moduledoc """
-  A tiny and friendly step runner for Elixir pipelines
+  A tiny and friendly step runner for Elixir pipelines.
 
   Extep is a simple and dependency-free utility that helps you compose Elixir pipelines using a shared context.
   It's useful for building multi-step workflows that can gracefully **halt** or **error** along the way.
-  Extep is an implementation of the Railway-oriented programming and it was inspired by
+  Extep is an implementation of the Railway-oriented programming and was inspired by
   [Ecto.Multi](https://hexdocs.pm/ecto/Ecto.Multi.html) and [Sage](https://hexdocs.pm/sage/readme.html).
 
   ## Example
@@ -126,9 +126,9 @@ defmodule Extep do
       %Extep{status: :error, context: %{foo: 1}, message: %{foo: "error message"}}
 
       iex> Extep.new(%{foo: 1})
-      ...> |> Extep.run(:foo, fn _ctx -> {:halt, "halt message"} end)
+      ...> |> Extep.run(:foo, fn _ctx -> {:halt, {:ok, "halt message"}} end)
       ...> |> Extep.run(:bar, fn ctx -> {:ok, ctx.foo + 2} end)
-      %Extep{status: :halted, context: %{foo: 1}, message: "halt message"}
+      %Extep{status: :halted, context: %{foo: 1}, message: {:ok, "halt message"}}
   """
   @spec run(t(), context_key(), context_mutator_fun()) :: t()
   def run(%Extep{status: :ok, context: context} = extep, context_key, fun)
@@ -151,7 +151,7 @@ defmodule Extep do
   with the context and returns whatever it returns. If you pass a context key,
   it fetches the value for that key and returns it in an ok tuple.
 
-  If the pipeline was halted, it returns `{:ok, message}`.
+  If the pipeline was halted, it returns the content of the `:message` field of the Extep struct.
   If the pipeline errored, it returns `{:error, message}`.
 
   ## Examples
@@ -192,12 +192,17 @@ defmodule Extep do
 
       iex> Extep.new(%{foo: 1})
       ...> |> Extep.run(:bar, fn ctx -> {:ok, ctx.foo + 1} end)
-      ...> |> Extep.return(fn _ctx -> {:halt, "halt message"} end)
+      ...> |> Extep.return(fn _ctx -> {:halt, {:ok, "halt message"}} end)
       {:ok, "halt message"}
 
       iex> Extep.new(%{foo: 1})
       ...> |> Extep.run(:bar, fn ctx -> {:ok, ctx.foo + 1} end)
-      ...> |> Extep.run(:baz, fn _ctx -> {:halt, "halt message"} end)
+      ...> |> Extep.return(fn _ctx -> {:halt, {:cancel, "cancel message"}} end)
+      {:cancel, "cancel message"}
+
+      iex> Extep.new(%{foo: 1})
+      ...> |> Extep.run(:bar, fn ctx -> {:ok, ctx.foo + 1} end)
+      ...> |> Extep.run(:baz, fn _ctx -> {:halt, {:ok, "halt message"}} end)
       ...> |> Extep.return(:bar)
       {:ok, "halt message"}
   """
@@ -235,7 +240,7 @@ defmodule Extep do
     %{extep | status: :error, message: Map.new([{message_key, message}])}
   end
 
-  defp return_interrupted(%Extep{status: :halted, message: message}), do: {:ok, message}
+  defp return_interrupted(%Extep{status: :halted, message: message}), do: message
   defp return_interrupted(%Extep{status: :error, message: message}), do: {:error, message}
 
   defp handle_message_key(fun, context_key) when is_function(fun) do

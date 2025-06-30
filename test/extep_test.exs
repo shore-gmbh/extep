@@ -40,10 +40,10 @@ defmodule ExtepTest do
     test "doesn't modify the context when the given function returns a halt tuple and updates the message field" do
       extep = %Extep{status: :ok, context: %{key: "value"}, message: nil}
 
-      assert Extep.run(extep, fn _context -> {:halt, "halt message"} end) == %Extep{
+      assert Extep.run(extep, fn _context -> {:halt, {:ok, "halt message"}} end) == %Extep{
                status: :halted,
                context: %{key: "value"},
-               message: "halt message"
+               message: {:ok, "halt message"}
              }
     end
 
@@ -99,11 +99,11 @@ defmodule ExtepTest do
     test "doesn't modify context when the given function returns halt tuple" do
       extep = %Extep{status: :ok, context: %{existing_key: "value"}, message: nil}
 
-      assert Extep.run(extep, :existing_key, fn _context -> {:halt, "halt message"} end) ==
+      assert Extep.run(extep, :existing_key, fn _context -> {:halt, {:ok, "halt message"}} end) ==
                %Extep{
                  status: :halted,
                  context: %{existing_key: "value"},
-                 message: "halt message"
+                 message: {:ok, "halt message"}
                }
     end
 
@@ -139,7 +139,7 @@ defmodule ExtepTest do
     end
 
     test "returns the halted value when `%Extep{}` status is `:halted`" do
-      extep = %Extep{status: :halted, context: %{key: "value"}, message: "halt message"}
+      extep = %Extep{status: :halted, context: %{key: "value"}, message: {:ok, "halt message"}}
 
       assert Extep.return(extep, :key) == {:ok, "halt message"}
     end
@@ -159,9 +159,9 @@ defmodule ExtepTest do
     end
 
     test "returns the halted value when `%Extep{}` status is `:halted`" do
-      extep = %Extep{status: :halted, context: %{key: "value"}, message: "message"}
+      extep = %Extep{status: :halted, context: %{key: "value"}, message: {:ok, "halt message"}}
 
-      assert Extep.return(extep, fn _context -> {:ok, "new value"} end) == {:ok, "message"}
+      assert Extep.return(extep, fn _context -> {:ok, "new value"} end) == {:ok, "halt message"}
     end
 
     test "returns an error tuple when the `%Extep{}` status is `:error`" do
