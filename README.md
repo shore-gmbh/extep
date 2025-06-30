@@ -4,7 +4,7 @@
 
 **A tiny and friendly step runner for Elixir pipelines**
 
-Extep is a simple utility that helps you compose Elixir pipelines using a shared context. It's especially useful for building multi-step workflows that can gracefully **halt** or **error** along the way.
+Extep is a simple utility that helps you compose Elixir pipelines using a shared context. It's useful for building multi-step workflows that can gracefully **halt** or **error** along the way. Extep is a simple implementation of the Railway-oriented programming and it was inspired by Ecto.Multi [Ecto.Multi](https://hexdocs.pm/ecto/Ecto.Multi.html) and [Sage](https://hexdocs.pm/sage/readme.html).
 
 ## Installation
 
@@ -13,7 +13,7 @@ Add `extep` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:extep, github: "shore-gmbh/extep"}
+    {:extep, "~> 0.1.0"}
   ]
 end
 ```
@@ -67,10 +67,10 @@ Extep.new(%{foo: "bar"})
 
 Runs a checker function that must return one of the following:
 
-- `:ok`: Continues the pipeline
-- `{:ok, value}`: Continues the pipeline
-- `{:halt, reason}`: Halts pipeline, stores `reason` in `:message`
-- `{:error, reason}`: Errors out, stores `reason` in `:message`
+- `:ok`: Continues the pipeline;
+- `{:ok, value}`: Continues the pipeline;
+- `{:halt, reason}`: Halts pipeline, stores `reason` in `:message`;
+- `{:error, reason}`: Errors out, stores `reason` in `:message`.
 
 ```elixir
 Extep.new(%{foo: 1})
@@ -82,9 +82,9 @@ Extep.new(%{foo: 1})
 
 Runs a mutator function and stores the result under the given key. It must return one of the following:
 
-- `{:ok, value}`: Continues the pipeline, saves `value` under the given key
-- `{:halt, reason}`: Halts pipeline, stores `reason` in `:message`
-- `{:error, reason}`: Errors out, stores `reason` in `:message`
+- `{:ok, value}`: Continues the pipeline, saves `value` under the given key;
+- `{:halt, reason}`: Halts pipeline, stores `reason` in `:message`;
+- `{:error, reason}`: Errors out, stores `reason` in `:message`.
 
 ```elixir
 Extep.new(%{foo: 1})
@@ -100,8 +100,9 @@ Returns a final result from the pipeline:
 
 ```elixir
 Extep.new(%{foo: 1})
-|> Extep.return(fn ctx -> {:ok, ctx.foo + 1} end)
-#=> {:ok, 2}
+|> Extep.run(:bar, fn ctx -> {:ok, ctx.foo + 1} end)
+|> Extep.return(fn ctx -> {:ok, ctx.bar + 2} end)
+#=> {:ok, 4}
 ```
 
 - With a context key:
@@ -109,8 +110,9 @@ Extep.new(%{foo: 1})
 ```elixir
 Extep.new(%{foo: 1})
 |> Extep.run(:bar, fn ctx -> {:ok, ctx.foo + 1} end)
-|> Extep.return(:foo)
-#=> {:ok, 1}
+|> Extep.run(:baz, fn ctx -> {:ok, ctx.bar + 2} end)
+|> Extep.return(:bar)
+#=> {:ok, 2}
 ```
 
 ## Error Messages
@@ -119,4 +121,4 @@ If a step fails or halts, Extep stores the reason in the `:message` field. For f
 
 ## License
 
-MIT © [Your Name]
+MIT © [Shore GmbH]
