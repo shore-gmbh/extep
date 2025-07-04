@@ -15,7 +15,7 @@ defmodule Extep do
       ...> |> Extep.run(:user, &fetch_user/1)
       ...> |> Extep.run(:items, &fetch_items/1)
       ...> |> Extep.return(&create_subscription/1)
-      {:ok, %{id: 123, object: "subscription"}}
+      {:ok, %{id: 123, object: "subscription", user_id: 1, items: [%{code: "item1"}, %{code: "item2"}]}}
   """
 
   alias __MODULE__

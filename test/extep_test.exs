@@ -176,7 +176,11 @@ defmodule ExtepTest do
   # Doctests helpers
 
   def validate_params(ctx), do: {:ok, ctx.params}
-  def fetch_user(_ctx), do: {:ok, %{}}
-  def fetch_items(_ctx), do: {:ok, []}
-  def create_subscription(_ctx), do: {:ok, %{id: 123, object: "subscription"}}
+  def fetch_user(_ctx), do: {:ok, %{id: 1, name: "Alice"}}
+  def fetch_items(_ctx), do: {:ok, [%{code: "item1"}, %{code: "item2"}]}
+
+  def create_subscription(_ctx) do
+    {:ok,
+     %{id: 123, object: "subscription", user_id: 1, items: [%{code: "item1"}, %{code: "item2"}]}}
+  end
 end

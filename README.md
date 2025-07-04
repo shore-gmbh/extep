@@ -2,7 +2,7 @@
 
 ![**Extep**](https://raw.githubusercontent.com/shore-gmbh/extep/main/Extep.png)
 
-**A tiny and friendly step runner for Elixir pipelines**
+**A tiny and friendly step runner for Elixir pipelines.**
 
 Extep is a simple and dependency-free utility that helps you compose Elixir pipelines using a shared context. It's useful for building multi-step workflows that can gracefully **halt** or **error** along the way. Extep is an implementation of the Railway-oriented programming and was inspired by [Ecto.Multi](https://hexdocs.pm/ecto/Ecto.Multi.html) and [Sage](https://hexdocs.pm/sage/readme.html).
 
@@ -32,13 +32,13 @@ Extep.new(%{params: params})
 |> Extep.run(:user, &fetch_user/1)
 |> Extep.run(:items, &fetch_items/1)
 |> Extep.return(&create_subscription/1)
-#=> {:ok, %{id: 123, object: "subscription"}}
+#=> {:ok, %{id: 123, object: "subscription", user_id: 1, items: [%{code: "item1"}, %{code: "item2"}]}}
 
 def validate_params(%{params: %{user_id: _id}} = ctx), do: {:ok, ctx.params}
 
 def fetch_user(%{params: %{user_id: id}}), do: {:ok, %{id: id, name: "Alice"}}
 
-def fetch_items(_ctx), do: {:ok, [%{sku: "item1"}, %{sku: "item2"}]}
+def fetch_items(_ctx), do: {:ok, [%{code: "item1"}, %{code: "item2"}]}
 
 def create_subscription(%{user: user, items: items}) do
   {:ok, %{id: 123, object: "subscription", user_id: user.id, items: items}}
