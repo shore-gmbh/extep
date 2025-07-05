@@ -94,7 +94,7 @@ Extep.new(%{foo: 1})
 #=> %Extep{status: :ok, context: %{foo: 1, bar: 2}, message: nil}
 ```
 
-### `Extep.return/2`
+### `Extep.return/3`
 
 Returns a final result from the pipeline:
 
@@ -119,7 +119,33 @@ Extep.new(%{foo: 1})
 
 ## Error Messages
 
-If a step fails or halts, Extep stores the reason in the `:message` field. For functions passed to `run/3`, the key is the same as the context key. For anonymous functions in `run/2`, the key is `:no_context_key`.
+If a step fails or halts, Extep stores the reason in the `:message` field. For functions passed to `run/3`, the key is the same as the context key. For anonymous functions in `run/2`, the key is `:no_label`.
+
+### Error Labeling with `label_error`
+
+By default, `Extep.return/3` returns clean error messages. You can control error formatting using the `label_error` option:
+
+```elixir
+# Default behavior - clean error messages
+Extep.new(%{foo: 1})
+|> Extep.run(:user, fn _ctx -> {:error, "User not found"} end)
+|> Extep.return(:foo)
+#=> {:error, "User not found"}
+
+# Named function return_error_tuple/1 example
+Extep.new(%{foo: 1})
+|> Extep.run(:user, &return_error_tuple/1)
+|> Extep.return(:foo, label_error: true)
+#=> {:error, %{return_error_tuple: "error message"}}
+
+# With label_error: true - labeled error messages
+Extep.new(%{foo: 1})
+|> Extep.run(:user, fn _ctx -> {:error, "User not found"} end)
+|> Extep.return(:foo, label_error: true)
+#=> {:error, %{user: "User not found"}}
+```
+
+Labeled errors help you identify which step caused the failure, which is useful for debugging complex pipelines.
 
 ## License
 

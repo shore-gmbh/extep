@@ -5,7 +5,7 @@ defmodule Extep.MixProject do
     [
       app: :extep,
       name: "Extep",
-      version: "0.1.1",
+      version: "0.2.0",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: [
@@ -19,6 +19,7 @@ defmodule Extep.MixProject do
         source_url: "https://github.com/shore-gmbh/extep",
         extras: [
           "README.md": [title: "Overview"],
+          "CHANGELOG.md": [title: "Changelog"],
           LICENSE: [title: "License"]
         ]
       ]

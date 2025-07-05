@@ -64,7 +64,7 @@ defmodule ExtepTest do
       assert Extep.run(extep, fn _context -> {:error, "error message"} end) == %Extep{
                status: :error,
                context: %{},
-               message: %{no_context_key: "error message"}
+               message: %{no_label: "error message"}
              }
     end
   end
@@ -144,8 +144,12 @@ defmodule ExtepTest do
       assert Extep.return(extep, :key) == {:ok, "halt message"}
     end
 
-    test "returns an error tuple when the `%Extep{}` status is `:error`" do
-      extep = %Extep{status: :error, context: %{key: "value"}, message: "error message"}
+    test "returns an unlabeled error tuple when the `%Extep{}` status is `:error` (default behavior)" do
+      extep = %Extep{
+        status: :error,
+        context: %{key: "value"},
+        message: %{some_key: "error message"}
+      }
 
       assert Extep.return(extep, :key) == {:error, "error message"}
     end
@@ -164,12 +168,102 @@ defmodule ExtepTest do
       assert Extep.return(extep, fn _context -> {:ok, "new value"} end) == {:ok, "halt message"}
     end
 
-    test "returns an error tuple when the `%Extep{}` status is `:error`" do
-      extep = %Extep{status: :error, context: %{key: "value"}, message: "message"}
+    test "returns an unlabeled error tuple when the `%Extep{}` status is `:error` (default behavior)" do
+      extep = %Extep{
+        status: :error,
+        context: %{key: "value"},
+        message: %{some_key: "error message"}
+      }
 
-      assert Extep.return(extep, fn _context -> {:ok, "new value"} end) == {:error, "message"}
+      assert Extep.return(extep, fn _context -> {:ok, "new value"} end) ==
+               {:error, "error message"}
     end
   end
+
+  describe "return/3 with label_error option" do
+    test "returns unlabeled error by default (label_error defaults to false)" do
+      extep = %Extep{
+        status: :error,
+        context: %{key: "value"},
+        message: %{some_key: "error message"}
+      }
+
+      assert Extep.return(extep, :key) == {:error, "error message"}
+    end
+
+    test "returns unlabeled error when label_error: false (explicit)" do
+      extep = %Extep{
+        status: :error,
+        context: %{key: "value"},
+        message: %{some_key: "error message"}
+      }
+
+      assert Extep.return(extep, :key, label_error: false) == {:error, "error message"}
+    end
+
+    test "returns labeled error when label_error: true" do
+      extep = %Extep{
+        status: :error,
+        context: %{key: "value"},
+        message: %{some_key: "error message"}
+      }
+
+      assert Extep.return(extep, :key, label_error: true) ==
+               {:error, %{some_key: "error message"}}
+    end
+
+    test "works with functions when label_error: false" do
+      extep = %Extep{
+        status: :error,
+        context: %{key: "value"},
+        message: %{some_key: "error message"}
+      }
+
+      assert Extep.return(extep, fn _ctx -> {:ok, "result"} end, label_error: false) ==
+               {:error, "error message"}
+    end
+
+    test "works with functions when label_error: true" do
+      extep = %Extep{
+        status: :error,
+        context: %{key: "value"},
+        message: %{some_key: "error message"}
+      }
+
+      assert Extep.return(extep, fn _ctx -> {:ok, "result"} end, label_error: true) ==
+               {:error, %{some_key: "error message"}}
+    end
+
+    test "returns labeled error when a named function returns an error tuple and label_error: true" do
+      extep = %Extep{status: :ok, context: %{key: "value"}, message: nil}
+
+      assert Extep.return(extep, &return_error_tuple/1, label_error: true) ==
+               {:error, %{return_error_tuple: "error message"}}
+    end
+
+    test "returns labeled error when an anonymous function returns an error tuple and label_error: true" do
+      extep = %Extep{status: :ok, context: %{key: "value"}, message: nil}
+
+      assert Extep.return(extep, fn _ctx -> {:error, "error message"} end, label_error: true) ==
+               {:error, %{no_label: "error message"}}
+    end
+
+    test "halted status ignores label_error option" do
+      extep = %Extep{status: :halted, context: %{key: "value"}, message: {:ok, "halt message"}}
+
+      assert Extep.return(extep, :key, label_error: true) == {:ok, "halt message"}
+      assert Extep.return(extep, :key, label_error: false) == {:ok, "halt message"}
+    end
+
+    test "ok status ignores label_error option and returns context value" do
+      extep = %Extep{status: :ok, context: %{key: "value"}, message: nil}
+
+      assert Extep.return(extep, :key, label_error: true) == {:ok, "value"}
+      assert Extep.return(extep, :key, label_error: false) == {:ok, "value"}
+    end
+  end
+
+  # Test helpers
 
   def return_error_tuple(_ctx), do: {:error, "error message"}
 
