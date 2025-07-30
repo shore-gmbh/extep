@@ -13,7 +13,7 @@ Add `extep` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:extep, "~> 0.1.0"}
+    {:extep, "~> 0.3.0"}
   ]
 end
 ```
@@ -29,9 +29,9 @@ params = %{user_id: 1, plan: "super-power-plus"}
 
 Extep.new(%{params: params})
 |> Extep.run(:params, &validate_params/1)
-|> Extep.run(:user, &fetch_user/1)
-|> Extep.run(:items, &fetch_items/1)
-|> Extep.return(&create_subscription/1)
+|> Extep.async(:user, &fetch_user/1)
+|> Extep.async(:items, &fetch_items/1)
+|> Extep.return(&create_subscription/1, label_error: true)
 #=> {:ok, %{id: 123, object: "subscription", user_id: 1, items: [%{code: "item1"}, %{code: "item2"}]}}
 
 def validate_params(%{params: %{user_id: _id}} = ctx), do: {:ok, ctx.params}
@@ -92,6 +92,42 @@ Runs a mutator function and stores the result under the given key. It must retur
 Extep.new(%{foo: 1})
 |> Extep.run(:bar, fn ctx -> {:ok, ctx.foo + 1} end)
 #=> %Extep{status: :ok, context: %{foo: 1, bar: 2}, message: nil}
+```
+
+### `Extep.async/2`
+
+Runs a checker function asynchronously. See `run/2` for more details.
+
+```elixir
+Extep.new(%{foo: 1})
+|> Extep.async(&check_something/1)
+|> Extep.async(&check_another_thing/1)
+|> Extep.await()
+#=> %Extep{status: :ok, context: %{foo: 1}, message: nil}
+```
+
+### `Extep.async/3`
+
+Runs a mutator function asynchronously and stores the result under the given key. See `run/3` for more details.
+
+```elixir
+Extep.new(%{foo: 1})
+|> Extep.async(:bar, fn ctx -> {:ok, ctx.foo + 1} end)
+|> Extep.async(:baz, fn ctx -> {:ok, ctx.foo + 2} end)
+|> Extep.await()
+#=> %Extep{status: :ok, context: %{foo: 1, bar: 2, baz: 3}, message: nil}
+```
+
+### `Extep.await/1`
+
+Awaits for all asynchronous tasks to finish.
+
+```elixir
+Extep.new(%{foo: 1})
+|> Extep.async(:bar, fn ctx -> {:ok, ctx.foo + 1} end)
+|> Extep.async(:baz, fn ctx -> {:ok, ctx.bar + 2} end)
+|> Extep.await()
+#=> %Extep{status: :ok, context: %{foo: 1, bar: 2, baz: 4}, message: nil}
 ```
 
 ### `Extep.return/3`
