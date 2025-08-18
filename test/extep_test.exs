@@ -130,6 +130,246 @@ defmodule ExtepTest do
     end
   end
 
+  describe "async/2" do
+    test "starts a task that doesn't modify the context" do
+      extep = %Extep{status: :ok, context: %{key: "value"}, tasks: [], message: nil}
+
+      assert %Extep{
+               status: :ok,
+               context: %{},
+               tasks: [%Task{} = task],
+               message: nil
+             } =
+               Extep.async(extep, fn context ->
+                 assert context == extep.context
+
+                 :ok
+               end)
+
+      assert Task.await(task) == extep
+    end
+
+    test "starts a task that changes the extep status" do
+      extep = %Extep{status: :ok, context: %{key: "value"}, tasks: [], message: nil}
+
+      assert %Extep{
+               status: :ok,
+               context: %{},
+               tasks: [%Task{} = task],
+               message: nil
+             } = Extep.async(extep, fn _context -> {:error, "error message"} end)
+
+      assert Task.await(task) == %Extep{
+               status: :error,
+               context: %{key: "value"},
+               tasks: [],
+               message: %{no_label: "error message"}
+             }
+    end
+
+    test "does not start tasks with interrupted status" do
+      extep = %Extep{status: :halted, context: %{}, tasks: [], message: nil}
+
+      assert Extep.async(extep, fn _context -> :ok end) == %Extep{
+               status: :halted,
+               context: %{},
+               tasks: [],
+               message: nil
+             }
+    end
+  end
+
+  describe "async/3" do
+    test "starts a task that modifies the context" do
+      extep = %Extep{status: :ok, context: %{key: "value"}, tasks: [], message: nil}
+
+      assert %Extep{
+               status: :ok,
+               context: %{},
+               tasks: [%Task{} = task],
+               message: nil
+             } =
+               Extep.async(extep, :new_key, fn context ->
+                 assert context == extep.context
+
+                 {:ok, "new value"}
+               end)
+
+      assert Task.await(task) == %Extep{
+               status: :ok,
+               context: %{key: "value", new_key: "new value"},
+               tasks: [],
+               message: nil
+             }
+    end
+
+    test "starts a task that changes the extep status to error" do
+      extep = %Extep{status: :ok, context: %{key: "value"}, tasks: [], message: nil}
+
+      assert %Extep{
+               status: :ok,
+               context: %{},
+               tasks: [%Task{} = task],
+               message: nil
+             } = Extep.async(extep, :new_key, fn _context -> {:error, "error message"} end)
+
+      assert Task.await(task) == %Extep{
+               status: :error,
+               context: %{key: "value"},
+               tasks: [],
+               message: %{new_key: "error message"}
+             }
+    end
+
+    test "does not start tasks with interrupted status" do
+      extep = %Extep{status: :halted, context: %{}, tasks: [], message: nil}
+
+      assert Extep.async(extep, :new_key, fn _context -> {:ok, "new value"} end) == %Extep{
+               status: :halted,
+               context: %{},
+               tasks: [],
+               message: nil
+             }
+    end
+  end
+
+  describe "await/1" do
+    test "await with no tasks returns same extep" do
+      extep = %Extep{status: :ok, context: %{key: "value"}, tasks: [], message: nil}
+
+      assert Extep.await(extep) == extep
+    end
+
+    test "await shuts down tasks when extep is interrupted" do
+      task = Task.async(fn -> :ok end)
+      extep = %Extep{status: :error, context: %{}, tasks: [task], message: nil}
+
+      assert Extep.await(extep) ==
+               %Extep{
+                 status: :error,
+                 context: %{},
+                 tasks: [],
+                 message: nil
+               }
+    end
+
+    test "await processes async/2 tasks" do
+      extep =
+        %Extep{status: :ok, context: %{key: "value"}, tasks: [], message: nil}
+        |> Extep.async(fn _context -> :ok end)
+
+      assert Extep.await(extep) == %Extep{
+               status: :ok,
+               context: %{key: "value"},
+               tasks: [],
+               message: nil
+             }
+    end
+
+    test "await processes async/3 tasks" do
+      extep =
+        %Extep{status: :ok, context: %{key: "value"}, tasks: [], message: nil}
+        |> Extep.async(:new_key, fn _context -> {:ok, "new value"} end)
+
+      assert Extep.await(extep) == %Extep{
+               status: :ok,
+               context: %{key: "value", new_key: "new value"},
+               tasks: [],
+               message: nil
+             }
+    end
+
+    test "await processes multiple tasks" do
+      extep =
+        %Extep{status: :ok, context: %{first_key: "first value"}, tasks: [], message: nil}
+        |> Extep.async(:second_key, fn _context -> {:ok, "second value"} end)
+        |> Extep.async(fn _context -> :ok end)
+        |> Extep.async(:third_key, fn _context -> {:ok, "third value"} end)
+
+      assert Extep.await(extep) == %Extep{
+               status: :ok,
+               context: %{
+                 first_key: "first value",
+                 second_key: "second value",
+                 third_key: "third value"
+               },
+               tasks: [],
+               message: nil
+             }
+    end
+
+    test "when a run/3 async step fails" do
+      extep =
+        %Extep{status: :ok, context: %{first_key: "first value"}, tasks: [], message: nil}
+        |> Extep.async(:second_key, fn _context -> {:error, "error message"} end)
+        |> Extep.async(fn _context -> :ok end)
+        |> Extep.async(:third_key, fn _context -> {:ok, "third value"} end)
+
+      assert Extep.await(extep) == %Extep{
+               status: :error,
+               context: %{first_key: "first value"},
+               tasks: [],
+               message: %{second_key: "error message"}
+             }
+    end
+
+    test "when a run/2 async step fails" do
+      extep =
+        %Extep{status: :ok, context: %{first_key: "first value"}, tasks: [], message: nil}
+        |> Extep.async(:second_key, fn _context -> {:ok, "second value"} end)
+        |> Extep.async(fn _context -> {:error, "error message"} end)
+        |> Extep.async(:third_key, fn _context -> {:ok, "third value"} end)
+
+      assert Extep.await(extep) == %Extep{
+               status: :error,
+               context: %{first_key: "first value", second_key: "second value"},
+               tasks: [],
+               message: %{no_label: "error message"}
+             }
+    end
+
+    test "when multiple async steps fails, stops and return the first failure" do
+      extep =
+        %Extep{status: :ok, context: %{first_key: "first value"}, tasks: [], message: nil}
+        |> Extep.async(:second_key, fn _context -> {:error, "error message"} end)
+        |> Extep.async(fn _context -> {:error, "error message"} end)
+        |> Extep.async(:third_key, fn _context -> {:ok, "third value"} end)
+
+      assert Extep.await(extep) == %Extep{
+               status: :error,
+               context: %{first_key: "first value"},
+               tasks: [],
+               message: %{second_key: "error message"}
+             }
+    end
+
+    test "await handles error in async/2 task" do
+      extep =
+        %Extep{status: :ok, context: %{key: "value"}, tasks: [], message: nil}
+        |> Extep.async(fn _context -> {:error, "error message"} end)
+
+      assert Extep.await(extep) == %Extep{
+               status: :error,
+               context: %{key: "value"},
+               tasks: [],
+               message: %{no_label: "error message"}
+             }
+    end
+
+    test "await handles error in async/3 task" do
+      extep =
+        %Extep{status: :ok, context: %{key: "value"}, tasks: [], message: nil}
+        |> Extep.async(:new_key, fn _context -> {:error, "error message"} end)
+
+      assert Extep.await(extep) == %Extep{
+               status: :error,
+               context: %{key: "value"},
+               tasks: [],
+               message: %{new_key: "error message"}
+             }
+    end
+  end
+
   describe "return/2 for context key" do
     test "returns the value from the given context key as an ok tuple" do
       context = %{key: "value", another_key: "antother value"}
@@ -150,6 +390,22 @@ defmodule ExtepTest do
         context: %{key: "value"},
         message: %{some_key: "error message"}
       }
+
+      assert Extep.return(extep, :key) == {:error, "error message"}
+    end
+
+    test "handles extep with pending tasks before returning value" do
+      extep =
+        %Extep{status: :ok, context: %{key: "value"}, tasks: [], message: nil}
+        |> Extep.async(:new_key, fn _context -> {:ok, "new value"} end)
+
+      assert Extep.return(extep, :new_key) == {:ok, "new value"}
+    end
+
+    test "handles error in tasks" do
+      extep =
+        %Extep{status: :ok, context: %{key: "value"}, tasks: [], message: nil}
+        |> Extep.async(:new_key, fn _context -> {:error, "error message"} end)
 
       assert Extep.return(extep, :key) == {:error, "error message"}
     end
@@ -174,6 +430,23 @@ defmodule ExtepTest do
         context: %{key: "value"},
         message: %{some_key: "error message"}
       }
+
+      assert Extep.return(extep, fn _context -> {:ok, "new value"} end) ==
+               {:error, "error message"}
+    end
+
+    test "handles extep with pending tasks before returning value" do
+      extep =
+        %Extep{status: :ok, context: %{}, tasks: [], message: nil}
+        |> Extep.async(:key, fn _context -> {:ok, "value"} end)
+
+      assert Extep.return(extep, fn _context -> {:ok, "new value"} end) == {:ok, "new value"}
+    end
+
+    test "handles error in tasks" do
+      extep =
+        %Extep{status: :ok, context: %{}, tasks: [], message: nil}
+        |> Extep.async(:key, fn _context -> {:error, "error message"} end)
 
       assert Extep.return(extep, fn _context -> {:ok, "new value"} end) ==
                {:error, "error message"}
@@ -261,20 +534,144 @@ defmodule ExtepTest do
       assert Extep.return(extep, :key, label_error: true) == {:ok, "value"}
       assert Extep.return(extep, :key, label_error: false) == {:ok, "value"}
     end
+
+    test "handles async task error with label_error: false for context key" do
+      extep =
+        %Extep{status: :ok, context: %{}, tasks: [], message: nil}
+        |> Extep.async(:key, fn _context -> {:error, "error message"} end)
+
+      assert Extep.return(extep, :key, label_error: false) == {:error, "error message"}
+    end
+
+    test "handles async task error with label_error: true for context key" do
+      extep =
+        %Extep{status: :ok, context: %{}, tasks: [], message: nil}
+        |> Extep.async(:key, fn _context -> {:error, "error message"} end)
+
+      assert Extep.return(extep, :key, label_error: true) == {:error, %{key: "error message"}}
+    end
+
+    test "handles async task error with label_error: true for context key and step without key" do
+      extep =
+        %Extep{status: :ok, context: %{}, tasks: [], message: nil}
+        |> Extep.async(fn _context -> {:error, "error message"} end)
+
+      assert Extep.return(extep, :key, label_error: true) ==
+               {:error, %{no_label: "error message"}}
+    end
+
+    test "handles async task error with label_error: false for function" do
+      extep =
+        %Extep{status: :ok, context: %{}, tasks: [], message: nil}
+        |> Extep.async(:key, fn _context -> {:error, "error message"} end)
+
+      assert Extep.return(extep, fn _context -> {:ok, "new value"} end, label_error: false) ==
+               {:error, "error message"}
+    end
+
+    test "handles async task error with label_error: true for function" do
+      extep =
+        %Extep{status: :ok, context: %{}, tasks: [], message: nil}
+        |> Extep.async(:key, fn _context -> {:error, "error message"} end)
+
+      assert Extep.return(extep, fn _context -> {:ok, "new value"} end, label_error: true) ==
+               {:error, %{key: "error message"}}
+    end
+
+    test "handles async task error with label_error: true for function and step without key" do
+      extep =
+        %Extep{status: :ok, context: %{}, tasks: [], message: nil}
+        |> Extep.async(fn _context -> {:error, "error message"} end)
+
+      assert Extep.return(extep, fn _context -> {:ok, "new value"} end, label_error: true) ==
+               {:error, %{no_label: "error message"}}
+    end
+  end
+
+  describe "integration tests" do
+    test "success" do
+      params = %{user_id: 1, plan: "super-power-plus"}
+
+      return =
+        Extep.new(%{params: params})
+        |> Extep.run(:params, &validate_params/1)
+        |> Extep.async(:user, &fetch_user/1)
+        |> Extep.async(:items, &fetch_items/1)
+        |> Extep.await()
+        |> Extep.async(fn %{user: _} -> :ok end)
+        |> Extep.async(:items_codes, fn %{items: items} -> {:ok, Enum.map(items, & &1.code)} end)
+        |> Extep.run(fn %{items_codes: _} -> :ok end)
+        |> Extep.async(fn _ -> :ok end)
+        |> Extep.async(:whatever, fn _ -> {:ok, "whatever"} end)
+        |> Extep.return(&create_subscription/1, label_error: true)
+
+      assert return ==
+               {:ok,
+                %{
+                  id: 123,
+                  object: "subscription",
+                  user_id: 1,
+                  items: [%{code: "item1"}, %{code: "item2"}]
+                }}
+    end
+
+    test "step failure" do
+      params = %{user_id: 1, plan: "super-power-plus"}
+
+      return =
+        Extep.new(%{params: params})
+        |> Extep.run(:params, &validate_params_failure/1)
+        |> Extep.async(:user, &fetch_user/1)
+        |> Extep.async(:items, &fetch_items/1)
+        |> Extep.return(&create_subscription/1, label_error: true)
+
+      assert return == {:error, %{validate_params_failure: "invalid params"}}
+    end
+
+    test "async step failure" do
+      params = %{user_id: 1, plan: "super-power-plus"}
+
+      return =
+        Extep.new(%{params: params})
+        |> Extep.run(:params, &validate_params/1)
+        |> Extep.async(:user, &fetch_user/1)
+        |> Extep.async(:items, &fetch_items_failure/1)
+        |> Extep.return(&create_subscription/1, label_error: true)
+
+      assert return == {:error, %{fetch_items_failure: "items not found"}}
+    end
+
+    test "multiple async steps failures" do
+      params = %{user_id: 1, plan: "super-power-plus"}
+
+      return =
+        Extep.new(%{params: params})
+        |> Extep.run(:params, &validate_params/1)
+        |> Extep.async(:user, &fetch_user_failure/1)
+        |> Extep.async(:items, &fetch_items_failure/1)
+        |> Extep.return(&create_subscription/1, label_error: true)
+
+      assert return == {:error, %{fetch_user_failure: "user not found"}}
+    end
   end
 
   # Test helpers
 
   def return_error_tuple(_ctx), do: {:error, "error message"}
 
-  # Doctests helpers
-
   def validate_params(ctx), do: {:ok, ctx.params}
+  def validate_params_failure(_ctx), do: {:error, "invalid params"}
+
   def fetch_user(_ctx), do: {:ok, %{id: 1, name: "Alice"}}
+  def fetch_user_failure(_ctx), do: {:error, "user not found"}
+
   def fetch_items(_ctx), do: {:ok, [%{code: "item1"}, %{code: "item2"}]}
+  def fetch_items_failure(_ctx), do: {:error, "items not found"}
 
   def create_subscription(_ctx) do
     {:ok,
      %{id: 123, object: "subscription", user_id: 1, items: [%{code: "item1"}, %{code: "item2"}]}}
   end
+
+  def notify_user(_ctx), do: :ok
 end

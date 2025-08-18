@@ -12,25 +12,53 @@ defmodule Extep do
       iex> params = %{user_id: 1, plan: "super-power-plus"}
       iex> Extep.new(%{params: params})
       ...> |> Extep.run(:params, &validate_params/1)
-      ...> |> Extep.run(:user, &fetch_user/1)
-      ...> |> Extep.run(:items, &fetch_items/1)
-      ...> |> Extep.return(&create_subscription/1)
+      ...> |> Extep.async(:user, &fetch_user/1)
+      ...> |> Extep.async(:items, &fetch_items/1)
+      ...> |> Extep.return(&create_subscription/1, label_error: true)
       {:ok, %{id: 123, object: "subscription", user_id: 1, items: [%{code: "item1"}, %{code: "item2"}]}}
   """
+  use Application
 
   alias __MODULE__
 
-  defstruct status: :ok, context: %{}, message: nil
+  defstruct status: :ok, context: %{}, tasks: [], message: nil
 
   @type status :: :ok | :halted | :error
   @type context :: map()
-  @type t :: %__MODULE__{status: status(), context: context(), message: any()}
+  @type tasks :: list(Task.t())
+  @type t :: %__MODULE__{
+          status: status(),
+          context: context(),
+          tasks: tasks(),
+          message: any()
+        }
+
+  defguardp is_ok(extep)
+            when is_struct(extep, __MODULE__) and extep.status == :ok
+
+  defguardp is_interrupted(extep)
+            when is_struct(extep, __MODULE__) and extep.status in [:halted, :error]
 
   @type context_key :: atom()
   @type context_checker_fun :: (context() ->
                                   :ok | {:ok, any()} | {:halt, any()} | {:error, any()})
   @type context_mutator_fun :: (context() -> {:ok, any()} | {:halt, any()} | {:error, any()})
+
+  defguardp is_ctx_fun(fun) when is_function(fun, 1)
+
   @type opts :: keyword()
+
+  @doc false
+  def start(_type, _args) do
+    import Supervisor.Spec, warn: false
+
+    children = [
+      {Task.Supervisor, name: Extep.AsyncStepSupervisor}
+    ]
+
+    opts = [strategy: :one_for_one, name: Extep.Supervisor]
+    Supervisor.start_link(children, opts)
+  end
 
   @doc """
   Creates a new `Extep` struct with an empty context.
@@ -57,6 +85,136 @@ defmodule Extep do
   def new(context) when is_map(context) do
     %Extep{context: context}
   end
+
+  @doc """
+  Asynchronously runs a checker function on the context without modifying it.
+
+  This is the async version of `run/2`. It starts a task to execute the checker function
+  in parallel while the pipeline continues. The task result is processed when `await/1`
+  is called. Like `run/2`, the context remains unchanged regardless of the function's
+  return value.
+
+  ## Function Return Values
+
+  The async checker function must return the same values as `run/2`:
+
+  - `:ok` - Pipeline continues with unchanged context
+  - `{:ok, value}` - Pipeline continues with unchanged context (value is ignored)
+  - `{:halt, reason}` - Pipeline stops with `:halted` status, reason stored in message
+  - `{:error, reason}` - Pipeline stops with `:error` status, reason stored in message
+
+  ## Examples
+
+      iex> Extep.new(%{user_id: 1})
+      ...> |> Extep.async(fn _ctx -> :ok end)
+      ...> |> Extep.async(fn _ctx -> {:ok, "validated"} end)
+      ...> |> Extep.await()
+      %Extep{status: :ok, context: %{user_id: 1}, message: nil}
+
+  See `run/2` for detailed behavior and error handling patterns.
+  """
+  @spec async(t(), context_checker_fun()) :: t()
+  def async(extep, fun) when is_ok(extep) and is_ctx_fun(fun) do
+    put_task([extep, fun])
+  end
+
+  def async(extep, fun) when is_interrupted(extep) and is_ctx_fun(fun), do: extep
+
+  @doc """
+  Asynchronously runs a mutator function that updates the context under the given key.
+
+  This is the async version of `run/3`. It starts a task to execute the mutator function
+  in parallel while the pipeline continues. The task result is processed when `await/1`
+  is called, and the context will be updated with the result under the specified key.
+
+  ## Function Return Values
+
+  The async mutator function must return the same values as `run/3`:
+
+  - `{:ok, value}` - Pipeline continues, `value` is stored under `context_key`
+  - `{:halt, reason}` - Pipeline stops with `:halted` status, reason stored in message
+  - `{:error, reason}` - Pipeline stops with `:error` status, reason stored in message
+
+  ## Examples
+
+      iex> Extep.new(%{user_id: 1})
+      ...> |> Extep.async(:user, fn ctx -> {:ok, %{id: ctx.user_id, name: "Alice"}} end)
+      ...> |> Extep.async(:items, fn _ctx -> {:ok, [%{code: "item1"}]} end)
+      ...> |> Extep.await()
+      %Extep{status: :ok, context: %{user_id: 1, user: %{id: 1, name: "Alice"}, items: [%{code: "item1"}]}, message: nil}
+
+  See `run/3` for detailed behavior and error handling patterns.
+  """
+  @spec async(t(), context_key(), context_mutator_fun()) :: t()
+  def async(extep, ctx_key, fun)
+      when is_ok(extep) and is_atom(ctx_key) and is_ctx_fun(fun) do
+    put_task([extep, ctx_key, fun])
+  end
+
+  def async(extep, ctx_key, fun)
+      when is_interrupted(extep) and is_atom(ctx_key) and is_ctx_fun(fun) do
+    extep
+  end
+
+  defp put_task([%Extep{} = extep | tail]) do
+    args = [%{extep | tasks: []} | tail]
+    task = Task.Supervisor.async_nolink(Extep.AsyncStepSupervisor, __MODULE__, :run, args)
+
+    %{extep | tasks: [task | extep.tasks]}
+  end
+
+  @doc """
+  Awaits completion of all pending async tasks and processes their results.
+
+  This function waits for all tasks started by `async/2` and `async/3` to complete,
+  then processes their results in the order they were started. If any task returns
+  an error or halt, the pipeline stops and subsequent task results are ignored.
+
+  ## Behavior
+
+  - If the extep has no pending tasks, returns the extep unchanged
+  - If the extep status is already `:halted` or `:error`, shuts down all tasks and returns the extep
+  - For `:ok` status, waits for all tasks and merges their context changes
+  - Stops at the first task that returns an error or halt
+
+  ## Examples
+
+      iex> Extep.new(%{user_id: 1})
+      ...> |> Extep.async(:user, fn ctx -> {:ok, %{id: ctx.user_id, name: "Alice"}} end)
+      ...> |> Extep.async(:items, fn _ctx -> {:ok, [%{code: "item1"}]} end)
+      ...> |> Extep.await()
+      %Extep{status: :ok, context: %{user_id: 1, user: %{id: 1, name: "Alice"}, items: [%{code: "item1"}]}, message: nil}
+
+  Note: `await/1` is automatically called by `run/2`, `run/3`, and `return/2` when there are pending tasks.
+  """
+  @spec await(t()) :: t()
+  def await(%{tasks: [_ | _]} = extep) when is_ok(extep) do
+    extep =
+      extep.tasks
+      |> Task.await_many()
+      |> Enum.reverse()
+      |> Enum.reduce_while(extep, fn
+        x, acc when is_ok(x) ->
+          {:cont, %{acc | context: Map.merge(acc.context, x.context)}}
+
+        x, acc when is_interrupted(x) ->
+          {:halt, %{x | context: Map.merge(acc.context, x.context)}}
+      end)
+
+    %{extep | tasks: []}
+  end
+
+  def await(extep) when is_interrupted(extep), do: shutdown_tasks(extep)
+
+  def await(%Extep{tasks: []} = extep), do: extep
+
+  defp shutdown_tasks(%Extep{tasks: [_ | _]} = extep) do
+    Enum.each(extep.tasks, &Task.shutdown(&1, :brutal_kill))
+
+    %{extep | tasks: []}
+  end
+
+  defp shutdown_tasks(%Extep{tasks: []} = extep), do: extep
 
   @doc """
   Runs a checker function on the context without modifying it.
@@ -133,18 +291,23 @@ defmodule Extep do
   - The context is never modified by this function
   """
   @spec run(t(), context_checker_fun()) :: t()
-  def run(%Extep{status: :ok, context: context} = extep, fun) when is_function(fun, 1) do
-    case apply(fun, [context]) do
+  def run(extep, fun)
+
+  def run(%{tasks: [_ | _]} = extep, fun) when is_ok(extep) and is_ctx_fun(fun) do
+    extep
+    |> await()
+    |> run(fun)
+  end
+
+  def run(extep, fun) when is_ok(extep) and is_ctx_fun(fun) do
+    case apply(fun, [extep.context]) do
       :ok -> extep
       {:ok, _} -> extep
-      return -> handle_halt_or_error_return(return, extep, fun, nil)
+      return -> interrupt(extep, return, fun, nil)
     end
   end
 
-  def run(%Extep{status: status} = extep, fun)
-      when status in [:halted, :error] and is_function(fun, 1) do
-    extep
-  end
+  def run(extep, fun) when is_interrupted(extep) and is_ctx_fun(fun), do: shutdown_tasks(extep)
 
   @doc """
   Runs a mutator function that updates the context with the result under the given key.
@@ -243,17 +406,26 @@ defmodule Extep do
   - Context keys can be new (adding) or existing (updating)
   """
   @spec run(t(), context_key(), context_mutator_fun()) :: t()
-  def run(%Extep{status: :ok, context: context} = extep, context_key, fun)
-      when is_atom(context_key) and is_function(fun, 1) do
-    case apply(fun, [context]) do
-      {:ok, value} -> %{extep | context: Map.put(context, context_key, value)}
-      return -> handle_halt_or_error_return(return, extep, fun, context_key)
+  def run(extep, ctx_key, fun)
+
+  def run(%{tasks: [_ | _]} = extep, ctx_key, fun)
+      when is_ok(extep) and is_atom(ctx_key) and is_ctx_fun(fun) do
+    extep
+    |> await()
+    |> run(ctx_key, fun)
+  end
+
+  def run(extep, ctx_key, fun)
+      when is_ok(extep) and is_atom(ctx_key) and is_ctx_fun(fun) do
+    case apply(fun, [extep.context]) do
+      {:ok, value} -> %{extep | context: Map.put(extep.context, ctx_key, value)}
+      return -> interrupt(extep, return, fun, ctx_key)
     end
   end
 
-  def run(%Extep{status: status} = extep, context_key, fun)
-      when status in [:halted, :error] and is_atom(context_key) and is_function(fun, 1) do
-    extep
+  def run(extep, ctx_key, fun)
+      when is_interrupted(extep) and is_atom(ctx_key) and is_ctx_fun(fun) do
+    shutdown_tasks(extep)
   end
 
   @doc """
@@ -360,36 +532,52 @@ defmodule Extep do
   @spec return(t(), context_mutator_fun() | context_key(), opts()) :: any()
   def return(extep, fun_or_key, opts \\ [])
 
-  def return(%Extep{status: :ok, context: context} = extep, fun, opts) when is_function(fun, 1) do
-    case apply(fun, [context]) do
+  def return(%{tasks: [_ | _]} = extep, fun, opts) when is_ok(extep) and is_ctx_fun(fun) do
+    extep
+    |> await()
+    |> return(fun, opts)
+  end
+
+  def return(extep, fun, opts) when is_ok(extep) and is_ctx_fun(fun) do
+    case apply(fun, [extep.context]) do
       {:ok, _} = return ->
         return
 
       return ->
-        handle_halt_or_error_return(return, extep, fun, nil)
+        extep
+        |> interrupt(return, fun, nil)
         |> return_interrupted(opts)
     end
   end
 
-  def return(%Extep{} = extep, fun, opts) when is_function(fun, 1) do
-    return_interrupted(extep, opts)
+  def return(extep, fun, opts) when is_interrupted(extep) and is_ctx_fun(fun) do
+    extep
+    |> shutdown_tasks()
+    |> return_interrupted(opts)
   end
 
-  def return(%Extep{status: :ok, context: context}, context_key, _opts)
-      when is_atom(context_key) do
-    {:ok, Map.fetch!(context, context_key)}
+  def return(%{tasks: [_ | _]} = extep, ctx_key, opts) when is_ok(extep) and is_atom(ctx_key) do
+    extep
+    |> await()
+    |> return(ctx_key, opts)
   end
 
-  def return(%Extep{} = extep, context_key, opts) when is_atom(context_key) do
-    return_interrupted(extep, opts)
+  def return(extep, ctx_key, _opts) when is_ok(extep) and is_atom(ctx_key) do
+    {:ok, Map.fetch!(extep.context, ctx_key)}
   end
 
-  defp handle_halt_or_error_return({:halt, message}, extep, _fun, _context_key) do
+  def return(extep, ctx_key, opts) when is_interrupted(extep) and is_atom(ctx_key) do
+    extep
+    |> shutdown_tasks()
+    |> return_interrupted(opts)
+  end
+
+  defp interrupt(%Extep{} = extep, {:halt, message}, _fun, _ctx_key) do
     %{extep | status: :halted, message: message}
   end
 
-  defp handle_halt_or_error_return({:error, message}, extep, fun, context_key) do
-    message_key = handle_message_key(fun, context_key)
+  defp interrupt(%Extep{} = extep, {:error, message}, fun, ctx_key) do
+    message_key = handle_message_key(fun, ctx_key)
 
     %{extep | status: :error, message: Map.new([{message_key, message}])}
   end
@@ -412,22 +600,22 @@ defmodule Extep do
 
   defp extract_error_message(message), do: {:error, message}
 
-  defp handle_message_key(fun, context_key) when is_function(fun) do
+  defp handle_message_key(fun, ctx_key) when is_function(fun) do
     info = Function.info(fun)
     type = Keyword.fetch!(info, :type)
     env = Keyword.fetch!(info, :env)
     name = Keyword.fetch!(info, :name)
-    context_key = handle_context_key(context_key)
+    ctx_key = handle_context_key(ctx_key)
 
     cond do
       type == :external ->
         name
 
       type == :local and is_atom(name) and String.contains?(Atom.to_string(name), "-fun-") ->
-        context_key
+        ctx_key
 
       type == :local and env != [] ->
-        context_key
+        ctx_key
 
       true ->
         name
@@ -435,5 +623,5 @@ defmodule Extep do
   end
 
   defp handle_context_key(nil), do: :no_label
-  defp handle_context_key(context_key) when is_atom(context_key), do: context_key
+  defp handle_context_key(ctx_key) when is_atom(ctx_key), do: ctx_key
 end

@@ -5,7 +5,7 @@ defmodule Extep.MixProject do
     [
       app: :extep,
       name: "Extep",
-      version: "0.2.0",
+      version: "0.3.0",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: [
@@ -28,7 +28,8 @@ defmodule Extep.MixProject do
 
   def application do
     [
-      extra_applications: [:logger]
+      extra_applications: [:logger],
+      mod: {Extep, []}
     ]
   end
 
