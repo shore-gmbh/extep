@@ -194,7 +194,7 @@ defmodule Extep do
 
   Note: `await/1` is automatically called by `run/2`, `run/3`, and `return/2` when there are pending tasks.
   """
-  @spec await(%{tasks: [Task.t()], context: map()}, keyword()) :: map()
+  @spec await(t(), keyword()) :: map()
   def await(tasks, opts \\ [])
 
   def await(%{tasks: [_ | _]} = extep, opts) when is_ok(extep) and is_list(opts) do
