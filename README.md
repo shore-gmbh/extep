@@ -120,7 +120,11 @@ Extep.new(%{foo: 1})
 
 ### `Extep.await/1`
 
-Awaits for all asynchronous tasks to finish.
+Awaits all asynchronous tasks to finish.  
+You can also call `Extep.await/2` with options.
+
+**Options**
+- `:timeout` — how long to wait (in ms) for all tasks to reply. Defaults to `10_000`. Accepts an integer or `:infinity` and is passed to `Task.await_many/2`. If the timeout elapses, the caller exits with `{:timeout, {Task, :await_many, ...}}`.
 
 ```elixir
 Extep.new(%{foo: 1})
@@ -128,7 +132,6 @@ Extep.new(%{foo: 1})
 |> Extep.async(:baz, fn ctx -> {:ok, ctx.bar + 2} end)
 |> Extep.await()
 #=> %Extep{status: :ok, context: %{foo: 1, bar: 2, baz: 4}, message: nil}
-```
 
 ### `Extep.return/3`
 
