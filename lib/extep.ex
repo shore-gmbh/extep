@@ -170,6 +170,13 @@ defmodule Extep do
   then processes their results in the order they were started. If any task returns
   an error or halt, the pipeline stops and subsequent task results are ignored.
 
+  ## Options
+
+  * `:timeout` — how long to wait (in ms) for all tasks to reply.
+    Defaults to `10_000`. You can also pass `:infinity`.
+
+    This function uses `Task.await_many/2`. If the timeout elapses before all tasks reply, the caller **exits** with `{:timeout, {Task, :await_many, ...}}`.
+
   ## Behavior
 
   - If the extep has no pending tasks, returns the extep unchanged
@@ -182,16 +189,20 @@ defmodule Extep do
       iex> Extep.new(%{user_id: 1})
       ...> |> Extep.async(:user, fn ctx -> {:ok, %{id: ctx.user_id, name: "Alice"}} end)
       ...> |> Extep.async(:items, fn _ctx -> {:ok, [%{code: "item1"}]} end)
-      ...> |> Extep.await()
+      ...> |> Extep.await(timeout: 10)
       %Extep{status: :ok, context: %{user_id: 1, user: %{id: 1, name: "Alice"}, items: [%{code: "item1"}]}, message: nil}
 
   Note: `await/1` is automatically called by `run/2`, `run/3`, and `return/2` when there are pending tasks.
   """
-  @spec await(t()) :: t()
-  def await(%{tasks: [_ | _]} = extep) when is_ok(extep) do
+  @spec await(t(), keyword()) :: map()
+  def await(tasks, opts \\ [])
+
+  def await(%{tasks: [_ | _]} = extep, opts) when is_ok(extep) and is_list(opts) do
+    timeout = Keyword.get(opts, :timeout, 10_000)
+
     extep =
       extep.tasks
-      |> Task.await_many()
+      |> Task.await_many(timeout)
       |> Enum.reverse()
       |> Enum.reduce_while(extep, fn
         x, acc when is_ok(x) ->
@@ -204,9 +215,9 @@ defmodule Extep do
     %{extep | tasks: []}
   end
 
-  def await(extep) when is_interrupted(extep), do: shutdown_tasks(extep)
+  def await(extep, _opts) when is_interrupted(extep), do: shutdown_tasks(extep)
 
-  def await(%Extep{tasks: []} = extep), do: extep
+  def await(%Extep{tasks: []} = extep, _opts), do: extep
 
   defp shutdown_tasks(%Extep{tasks: [_ | _]} = extep) do
     Enum.each(extep.tasks, &Task.shutdown(&1, :brutal_kill))
