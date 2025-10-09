@@ -149,6 +149,18 @@ defmodule ExtepTest do
       assert Task.await(task) == extep
     end
 
+    test "ensures :timeout option threshold and exits on timeout" do
+      extep = %Extep{status: :ok, context: %{}, tasks: [], message: nil}
+
+      extep =
+        Extep.async(extep, fn _context ->
+          Process.sleep(50)
+          :ok
+        end)
+
+      assert {:timeout, {Task, :await_many, _}} = catch_exit(Extep.await(extep, timeout: 10))
+    end
+
     test "starts a task that changes the extep status" do
       extep = %Extep{status: :ok, context: %{key: "value"}, tasks: [], message: nil}
 
