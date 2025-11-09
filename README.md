@@ -2,7 +2,10 @@
 
 ![**Extep**](https://raw.githubusercontent.com/shore-gmbh/extep/main/Extep.png)
 
-[![Extep DeepWiki](https://deepwiki.com/badge.svg)](https://context7.com/shore-gmbh/extep)
+[![CI](https://github.com/shore-gmbh/extep/actions/workflows/ci.yml/badge.svg)](https://github.com/shore-gmbh/extep/actions)
+[![Hex.pm](https://img.shields.io/hexpm/v/extep.svg)](https://hexdocs.pm/extep/readme.html)
+[![Context7 MCP](https://img.shields.io/badge/Context7-MCP-blue)](https://context7.com/shore-gmbh/extep)
+[![Extep DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/shore-gmbh/extep)
 
 **A tiny and friendly step runner for Elixir pipelines.**
 
