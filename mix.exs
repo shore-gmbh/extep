@@ -9,7 +9,7 @@ defmodule Extep.MixProject do
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: [
-        {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
+        {:ex_doc, "~> 0.39", only: :dev, runtime: false}
       ],
       description: "A tiny and friendly step runner for Elixir pipelines",
       package: package(),

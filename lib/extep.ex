@@ -90,7 +90,7 @@ defmodule Extep do
   Asynchronously runs a checker function on the context without modifying it.
 
   This is the async version of `run/2`. It starts a task to execute the checker function
-  in parallel while the pipeline continues. The task result is processed when `await/1`
+  in parallel while the pipeline continues. The task result is processed when `await/2`
   is called. Like `run/2`, the context remains unchanged regardless of the function's
   return value.
 
@@ -124,7 +124,7 @@ defmodule Extep do
   Asynchronously runs a mutator function that updates the context under the given key.
 
   This is the async version of `run/3`. It starts a task to execute the mutator function
-  in parallel while the pipeline continues. The task result is processed when `await/1`
+  in parallel while the pipeline continues. The task result is processed when `await/2`
   is called, and the context will be updated with the result under the specified key.
 
   ## Function Return Values
@@ -192,7 +192,7 @@ defmodule Extep do
       ...> |> Extep.await(timeout: 10)
       %Extep{status: :ok, context: %{user_id: 1, user: %{id: 1, name: "Alice"}, items: [%{code: "item1"}]}, message: nil}
 
-  Note: `await/1` is automatically called by `run/2`, `run/3`, and `return/2` when there are pending tasks.
+  Note: `await/2` is automatically called by `run/2`, `run/3`, and `return/2` when there are pending tasks.
   """
   @spec await(t(), keyword()) :: map()
   def await(tasks, opts \\ [])

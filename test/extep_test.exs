@@ -245,7 +245,7 @@ defmodule ExtepTest do
     end
   end
 
-  describe "await/1" do
+  describe "await/2" do
     test "await with no tasks returns same extep" do
       extep = %Extep{status: :ok, context: %{key: "value"}, tasks: [], message: nil}
 

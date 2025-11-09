@@ -2,6 +2,8 @@
 
 ![**Extep**](https://raw.githubusercontent.com/shore-gmbh/extep/main/Extep.png)
 
+[![Extep DeepWiki](https://deepwiki.com/badge.svg)](https://context7.com/shore-gmbh/extep)
+
 **A tiny and friendly step runner for Elixir pipelines.**
 
 Extep is a simple and dependency-free utility that helps you compose Elixir pipelines using a shared context. It's useful for building multi-step workflows that can gracefully **halt** or **error** along the way. Extep is an implementation of the Railway-oriented programming and was inspired by [Ecto.Multi](https://hexdocs.pm/ecto/Ecto.Multi.html) and [Sage](https://hexdocs.pm/sage/readme.html).
@@ -13,7 +15,7 @@ Add `extep` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:extep, "~> 0.3.0"}
+    {:extep, "~> 0.3.1"}
   ]
 end
 ```
@@ -118,12 +120,13 @@ Extep.new(%{foo: 1})
 #=> %Extep{status: :ok, context: %{foo: 1, bar: 2, baz: 3}, message: nil}
 ```
 
-### `Extep.await/1`
+### `Extep.await/2`
 
-Awaits all asynchronous tasks to finish.  
+Awaits all asynchronous tasks to finish.
 You can also call `Extep.await/2` with options.
 
 **Options**
+
 - `:timeout` — how long to wait (in ms) for all tasks to reply. Defaults to `10_000`. Accepts an integer or `:infinity` and is passed to `Task.await_many/2`. If the timeout elapses, the caller exits with `{:timeout, {Task, :await_many, ...}}`.
 
 ```elixir
@@ -132,6 +135,7 @@ Extep.new(%{foo: 1})
 |> Extep.async(:baz, fn ctx -> {:ok, ctx.bar + 2} end)
 |> Extep.await()
 #=> %Extep{status: :ok, context: %{foo: 1, bar: 2, baz: 4}, message: nil}
+```
 
 ### `Extep.return/3`
 
